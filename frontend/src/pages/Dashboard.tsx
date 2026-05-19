@@ -28,7 +28,7 @@ export default function Dashboard() {
         <CardHeader>
           <CardTitle>Welcome, {user?.name ?? user?.email}</CardTitle>
           <CardDescription>
-            Projects, specs, and test suites will live here from Week 2 onward.
+            Projects, specs, and test suites will live here.
           </CardDescription>
         </CardHeader>
         <CardContent>
