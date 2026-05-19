@@ -30,3 +30,4 @@ backend/.mypy_cache/
 backend/.ruff_cache/
 backend/htmlcov/
 backend/.coverage
+docs/

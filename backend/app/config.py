@@ -5,6 +5,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    # This will automatically load variables from .env file
+    # You don't need to manually load them
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -27,6 +29,8 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def cors_origins(self) -> list[str]:
+        # You'll have URLs like http://localhost:5173;http://[IP_ADDRESS]
+        # Split by ',' and strip whitespace
         return [o.strip() for o in self.cors_origins_raw.split(",") if o.strip()]
 
 
