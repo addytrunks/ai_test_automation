@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,6 +36,7 @@ def create_app() -> FastAPI:
 
     # Auth router
     from app.auth.router import router as auth_router
+
     app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 
     return app

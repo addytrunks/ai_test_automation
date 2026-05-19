@@ -1,3 +1,5 @@
+from datetime import UTC
+
 import pytest
 from pydantic import ValidationError
 
@@ -27,12 +29,13 @@ def test_user_login_minimal_fields():
 
 def test_user_read_excludes_password():
     import uuid
-    from datetime import datetime, timezone
+    from datetime import datetime
+
     payload = {
         "id": uuid.uuid4(),
         "email": "a@b.com",
         "name": "A B",
-        "created_at": datetime.now(timezone.utc),
+        "created_at": datetime.now(UTC),
     }
     u = UserRead(**payload)
     assert "password" not in u.model_dump()

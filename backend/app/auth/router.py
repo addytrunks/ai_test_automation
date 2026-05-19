@@ -31,7 +31,9 @@ async def register(payload: UserCreate, db: DbSession) -> User:
         await db.commit()
     except IntegrityError as e:
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered") from e
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Email already registered"
+        ) from e
     await db.refresh(user)
     return user
 

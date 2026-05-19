@@ -10,6 +10,7 @@ async def test_engine_can_execute_select_one(monkeypatch):
     monkeypatch.setenv("JWT_SECRET", "x")
     # clear cached settings
     from app.config import get_settings
+
     get_settings.cache_clear()
     get_engine.cache_clear()
     get_sessionmaker.cache_clear()
@@ -26,6 +27,7 @@ async def test_sessionmaker_yields_session(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
     monkeypatch.setenv("JWT_SECRET", "x")
     from app.config import get_settings
+
     get_settings.cache_clear()
     get_engine.cache_clear()
     get_sessionmaker.cache_clear()

@@ -25,6 +25,7 @@ def test_jwt_round_trip(monkeypatch):
     monkeypatch.setenv("JWT_EXPIRES_MINUTES", "60")
     monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
     from app.config import get_settings
+
     get_settings.cache_clear()
 
     user_id = uuid.uuid4()
@@ -38,6 +39,7 @@ def test_jwt_decode_rejects_garbage(monkeypatch):
     monkeypatch.setenv("JWT_SECRET", "test-secret")
     monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
     from app.config import get_settings
+
     get_settings.cache_clear()
 
     with pytest.raises(jwt.JWTError):
