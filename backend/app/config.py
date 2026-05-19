@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     openai_api_key: str = Field("")
     vampi_base_url: str = Field("http://localhost:5001")
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def cors_origins(self) -> list[str]:
         # You'll have URLs like http://localhost:5173;http://[IP_ADDRESS]
