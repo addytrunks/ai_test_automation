@@ -13,10 +13,9 @@ docker compose up -d
 
 # 2. Backend
 cd backend
-python -m venv .venv && source .venv/Scripts/activate  # Windows bash
-pip install -e .
-alembic upgrade head
-uvicorn app.main:app --reload --port 8000
+uv sync                          # creates .venv and installs all deps
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload --port 8000
 
 # 3. Frontend (new shell)
 cd frontend
