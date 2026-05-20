@@ -9,6 +9,11 @@ venv/
 *.db
 *.sqlite
 
+# Root
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
 # Node
 node_modules/
 dist/
