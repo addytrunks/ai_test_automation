@@ -3,7 +3,9 @@ import { Navigate, Route, Routes } from "react-router-dom"
 import { AuthRoute } from "@/components/AuthRoute"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import Dashboard from "@/pages/Dashboard"
+import EndpointExplorer from "@/pages/EndpointExplorer"
 import Login from "@/pages/Login"
+import ProjectDetail from "@/pages/ProjectDetail"
 import Register from "@/pages/Register"
 
 function App() {
@@ -17,6 +19,22 @@ function App() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/:projectId"
+        element={
+          <ProtectedRoute>
+            <ProjectDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/specs/:specId/endpoints"
+        element={
+          <ProtectedRoute>
+            <EndpointExplorer />
           </ProtectedRoute>
         }
       />
