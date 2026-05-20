@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Endpoint, Project, Spec
 from app.specs.parser import parse_openapi_spec
-from app.specs.schemas import ProjectCreate
+from app.specs.schemas import ProjectCreate, ProjectUpdate
 
 
 async def create_project(
@@ -43,6 +43,26 @@ async def get_project(
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     return project
+
+
+async def update_project(
+    db: AsyncSession, user_id: uuid.UUID, project_id: uuid.UUID, payload: ProjectUpdate
+) -> Project:
+    project = await get_project(db, user_id, project_id)
+    update_data = payload.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(project, field, value)
+    await db.commit()
+    await db.refresh(project)
+    return project
+
+
+async def delete_project(
+    db: AsyncSession, user_id: uuid.UUID, project_id: uuid.UUID
+) -> None:
+    project = await get_project(db, user_id, project_id)
+    await db.delete(project)
+    await db.commit()
 
 
 async def ingest_spec(

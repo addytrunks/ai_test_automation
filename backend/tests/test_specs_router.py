@@ -72,6 +72,62 @@ async def test_projects_require_auth(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
+async def test_update_project(auth_client: AsyncClient) -> None:
+    # Create project
+    resp = await auth_client.post(
+        "/api/v1/projects",
+        json={"name": "Original Name", "description": "Original desc"},
+    )
+    assert resp.status_code == 201
+    project_id = resp.json()["id"]
+
+    # Update only the name (partial update)
+    resp = await auth_client.patch(
+        f"/api/v1/projects/{project_id}",
+        json={"name": "Updated Name"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Updated Name"
+    assert resp.json()["description"] == "Original desc"  # unchanged
+
+
+@pytest.mark.asyncio
+async def test_delete_project(auth_client: AsyncClient) -> None:
+    # Create project
+    resp = await auth_client.post("/api/v1/projects", json={"name": "To Delete"})
+    project_id = resp.json()["id"]
+
+    # Delete it
+    resp = await auth_client.delete(f"/api/v1/projects/{project_id}")
+    assert resp.status_code == 204
+
+    # Verify it's gone
+    resp = await auth_client.get(f"/api/v1/projects/{project_id}")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_project_cascades_specs(auth_client: AsyncClient) -> None:
+    # Create project + upload spec
+    resp = await auth_client.post("/api/v1/projects", json={"name": "Cascade Test"})
+    project_id = resp.json()["id"]
+
+    resp = await auth_client.post(
+        f"/api/v1/projects/{project_id}/specs",
+        files={"file": ("openapi.yaml", SAMPLE_SPEC_YAML, "application/x-yaml")},
+    )
+    spec_id = resp.json()["id"]
+
+    # Delete project — should cascade to specs and endpoints
+    resp = await auth_client.delete(f"/api/v1/projects/{project_id}")
+    assert resp.status_code == 204
+
+    # Verify endpoints for that spec are also gone
+    resp = await auth_client.get(f"/api/v1/specs/{spec_id}/endpoints")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_upload_and_list_specs(auth_client: AsyncClient) -> None:
     # Create project first
     resp = await auth_client.post("/api/v1/projects", json={"name": "Spec Test"})

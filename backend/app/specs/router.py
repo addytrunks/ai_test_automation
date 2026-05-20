@@ -8,7 +8,7 @@ from sqlalchemy import select
 from app.deps import CurrentUser, DbSession
 from app.models import Project, Spec
 from app.specs import service
-from app.specs.schemas import EndpointRead, ProjectCreate, ProjectRead, SpecRead
+from app.specs.schemas import EndpointRead, ProjectCreate, ProjectRead, ProjectUpdate, SpecRead
 
 router = APIRouter()
 
@@ -28,6 +28,20 @@ async def get_project(
     project_id: uuid.UUID, user: CurrentUser, db: DbSession
 ) -> ProjectRead:
     return await service.get_project(db, user.id, project_id)  # type: ignore[return-value]
+
+
+@router.patch("/projects/{project_id}", response_model=ProjectRead)
+async def update_project(
+    project_id: uuid.UUID, payload: ProjectUpdate, user: CurrentUser, db: DbSession
+) -> ProjectRead:
+    return await service.update_project(db, user.id, project_id, payload)  # type: ignore[return-value]
+
+
+@router.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_project(
+    project_id: uuid.UUID, user: CurrentUser, db: DbSession
+) -> None:
+    await service.delete_project(db, user.id, project_id)
 
 
 @router.post(

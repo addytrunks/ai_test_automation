@@ -13,6 +13,12 @@ class ProjectCreate(BaseModel):
     target_base_url: str | None = Field(default=None, max_length=1024)
 
 
+class ProjectUpdate(BaseModel):
+    name: str | None = Field(default=None, max_length=255)
+    description: str | None = Field(default=None, max_length=1024)
+    target_base_url: str | None = Field(default=None, max_length=1024)
+
+
 class ProjectRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
