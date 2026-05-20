@@ -7,10 +7,10 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from app.auth.schemas import TokenResponse, UserCreate, UserRead
 from app.auth.service import create_access_token, hash_password, verify_password
 from app.deps import CurrentUser, DbSession
 from app.models import User
-from app.auth.schemas import TokenResponse, UserCreate, UserRead
 
 router = APIRouter()
 
