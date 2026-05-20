@@ -145,7 +145,7 @@ export default function Dashboard() {
               <CardContent>
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-slate-400">
-                    Created {new Date(project.created_at).toLocaleDateString()}
+                    Created on {new Date(project.created_at).toDateString()}
                   </p>
                   <Button
                     id={`delete-project-${project.id}`}

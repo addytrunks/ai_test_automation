@@ -133,7 +133,7 @@ export default function ProjectDetail() {
                   Version {spec.version}
                 </CardTitle>
                 <CardDescription>
-                  Parsed {new Date(spec.parsed_at).toLocaleString()}
+                  Parsed {new Date(spec.parsed_at).toLocaleDateString("en-GB")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
