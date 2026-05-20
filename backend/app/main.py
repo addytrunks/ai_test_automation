@@ -39,6 +39,11 @@ def create_app() -> FastAPI:
 
     app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 
+    # Specs router
+    from app.specs.router import router as specs_router
+
+    app.include_router(specs_router, prefix="/api/v1", tags=["specs"])
+
     return app
 
 

@@ -53,3 +53,21 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
+
+
+@pytest_asyncio.fixture
+async def auth_client(client: AsyncClient) -> AsyncGenerator[AsyncClient, None]:
+    """Return a client pre-authenticated with a valid JWT bearer token."""
+    # Register a test user
+    await client.post(
+        "/api/v1/auth/register",
+        json={"email": "testuser@example.com", "password": "supersecretpw", "name": "Test User"},
+    )
+    # Login to get token
+    login_resp = await client.post(
+        "/api/v1/auth/login",
+        data={"username": "testuser@example.com", "password": "supersecretpw"},
+    )
+    token = login_resp.json()["access_token"]
+    client.headers["Authorization"] = f"Bearer {token}"
+    yield client

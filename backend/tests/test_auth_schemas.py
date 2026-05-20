@@ -3,7 +3,7 @@ from datetime import UTC
 import pytest
 from pydantic import ValidationError
 
-from app.schemas import TokenResponse, UserCreate, UserLogin, UserRead
+from app.auth.schemas import TokenResponse, UserCreate, UserLogin, UserRead
 
 
 def test_user_create_requires_email_and_password():
