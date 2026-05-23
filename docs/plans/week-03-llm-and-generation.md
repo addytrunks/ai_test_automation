@@ -55,7 +55,7 @@ npm install react-json-view-lite
 - [ ] **Step 2: Install**
 ```bash
 cd backend
-pip install -e ".[dev]"
+uv sync
 ```
 
 - [ ] **Step 3: Commit**
