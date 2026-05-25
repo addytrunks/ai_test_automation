@@ -1,0 +1,21 @@
+description: "Generate authentication bypass tests that attempt to access endpoints without valid credentials or with manipulated tokens."
+examples:
+  - input: "Endpoint path: /users, method: GET, params: none, body: none, security: Bearer token required"
+    output:
+      name: "Access without auth token"
+      description: "Verifies the endpoint rejects requests with no Authorization header"
+      scenario_type: "auth_bypass"
+      headers: {}
+      expected_status: 401
+      assertions:
+        - {type: "status_eq", expected: 401}
+        - {type: "body_contains", expected: "unauthorized"}
+  - input: "Endpoint path: /users, method: GET, params: none, body: none, security: Bearer token required"
+    output:
+      name: "Access with expired/invalid token"
+      description: "Verifies the endpoint rejects requests with a malformed JWT token"
+      scenario_type: "auth_bypass"
+      headers: {"Authorization": "Bearer invalid.token.here"}
+      expected_status: 401
+      assertions:
+        - {type: "status_eq", expected: 401}

@@ -1,0 +1,31 @@
+description: "Generate negative tests with invalid, missing, or malformed inputs that verify proper error handling."
+examples:
+  - input: "Endpoint path: /users, method: POST, params: none, body: {email: string, age: int}"
+    output:
+      name: "Fail on missing required email field"
+      description: "Verifies the API returns an error when the required email field is omitted"
+      scenario_type: "negative"
+      body: {"age": 30}
+      expected_status: 422
+      assertions:
+        - {type: "status_eq", expected: 422}
+        - {type: "body_contains", expected: "email"}
+  - input: "Endpoint path: /users, method: POST, params: none, body: {email: string, age: int}"
+    output:
+      name: "Fail on invalid age type"
+      description: "Verifies the API rejects a non-integer value for the age field"
+      scenario_type: "negative"
+      body: {"email": "test@example.com", "age": "twenty-five"}
+      expected_status: 422
+      assertions:
+        - {type: "status_eq", expected: 422}
+        - {type: "body_contains", expected: "age"}
+  - input: "Endpoint path: /users/{id}, method: GET, params: [{name: id, in: path, type: integer}], body: none"
+    output:
+      name: "Fail on non-existent resource ID"
+      description: "Verifies the API returns 404 when requesting a user that does not exist"
+      scenario_type: "negative"
+      path_params: {"id": 999999}
+      expected_status: 404
+      assertions:
+        - {type: "status_eq", expected: 404}

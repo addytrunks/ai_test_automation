@@ -1,0 +1,44 @@
+description: "Generate injection tests that attempt SQL injection, NoSQL injection, XSS, and command injection through user-controllable fields. IMPORTANT: The target API may be vulnerable and accept these payloads rather than reject them. Assertions must check for EITHER safe rejection (4xx) OR absence of execution evidence in the response — not assume rejection. Use status_in to allow the full range of possible responses, and add body_not_contains assertions to detect successful injection."
+examples:
+  - input: "Endpoint path: /users, method: POST, params: none, body: {email: string, name: string}"
+    output:
+      name: "SQL injection via name field"
+      description: "Verifies the API safely handles SQL injection payloads in the name field — a safe API rejects with 4xx; a vulnerable API may return 2xx but must not reflect execution side effects"
+      scenario_type: "injection"
+      body: {"email": "inject@test.com", "name": "'; DROP TABLE users; --"}
+      expected_status: 422
+      assertions:
+        - {type: "status_in", expected: [400, 422, 500]}
+        - {type: "body_not_contains", expected: "syntax error"}
+        - {type: "body_not_contains", expected: "DROP TABLE"}
+  - input: "Endpoint path: /search, method: GET, params: [{name: q, in: query, type: string}], body: none"
+    output:
+      name: "XSS injection via search query"
+      description: "Verifies the API sanitizes or rejects XSS payloads in query parameters — a vulnerable API may echo the payload back in the response body"
+      scenario_type: "injection"
+      query_params: {"q": "<script>alert('xss')</script>"}
+      expected_status: 400
+      assertions:
+        - {type: "status_in", expected: [400, 422]}
+        - {type: "body_not_contains", expected: "<script>"}
+  - input: "Endpoint path: /users, method: POST, params: none, body: {email: string, name: string}"
+    output:
+      name: "NoSQL injection via name field"
+      description: "Verifies the API safely handles NoSQL operator injection — a vulnerable API may return a 200 with unintended data if the operator is evaluated"
+      scenario_type: "injection"
+      body: {"email": "nosql@test.com", "name": "{\"$gt\": \"\"}"}
+      expected_status: 422
+      assertions:
+        - {type: "status_in", expected: [400, 422]}
+        - {type: "body_not_contains", expected: "$gt"}
+  - input: "Endpoint path: /users/login, method: POST, params: none, body: {username: string, password: string}"
+    output:
+      name: "NoSQL injection in login credentials to bypass authentication"
+      description: "Verifies the login endpoint rejects NoSQL operator payloads that could match any password — a vulnerable API returns 200 with a token, indicating auth bypass via injection"
+      scenario_type: "injection"
+      body: {"username": "admin", "password": {"$gt": ""}}
+      expected_status: 401
+      assertions:
+        - {type: "status_in", expected: [400, 401, 422]}
+        - {type: "body_not_contains", expected: "auth_token"}
+        - {type: "body_not_contains", expected: "token"}

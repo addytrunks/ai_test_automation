@@ -1,0 +1,30 @@
+description: "Generate boundary value tests that probe edge cases like extremely large values, empty strings, minimum/maximum lengths, and special characters."
+examples:
+  - input: "Endpoint path: /users, method: POST, params: none, body: {email: string, age: int}"
+    output:
+      name: "Boundary test with age zero"
+      description: "Verifies API behavior when age is set to the boundary value of 0"
+      scenario_type: "boundary"
+      body: {"email": "boundary@test.com", "age": 0}
+      expected_status: 400
+      assertions:
+        - {type: "status_eq", expected: 400}
+  - input: "Endpoint path: /users, method: POST, params: none, body: {email: string, age: int}"
+    output:
+      name: "Boundary test with extremely large age"
+      description: "Verifies API behavior when age exceeds reasonable bounds"
+      scenario_type: "boundary"
+      body: {"email": "boundary@test.com", "age": 999999999}
+      expected_status: 422
+      assertions:
+        - {type: "status_eq", expected: 422}
+  - input: "Endpoint path: /users, method: POST, params: none, body: {name: string, email: string}"
+    output:
+      name: "Boundary test with empty name string"
+      description: "Verifies API handles an empty string for the name field"
+      scenario_type: "boundary"
+      body: {"name": "", "email": "empty@test.com"}
+      expected_status: 422
+      assertions:
+        - {type: "status_eq", expected: 422}
+        - {type: "body_contains", expected: "name"}
