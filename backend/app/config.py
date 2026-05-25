@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     # so pydantic-settings never tries to JSON-decode it.
     cors_origins_raw: str = Field("http://localhost:5173", alias="cors_origins")
 
-    llm_model: str = Field("openai/gpt-4o-mini")
+    llm_model: str = Field(...)
     openai_api_key: str = Field("")
     openrouter_api_key: str = Field("")
     vampi_base_url: str = Field("http://localhost:5001")
