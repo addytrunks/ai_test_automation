@@ -24,6 +24,7 @@ class Settings(BaseSettings):
 
     llm_model: str = Field("openai/gpt-4o-mini")
     openai_api_key: str = Field("")
+    openrouter_api_key: str = Field("")
     vampi_base_url: str = Field("http://localhost:5001")
 
     @computed_field  # type: ignore[prop-decorator]

@@ -37,6 +37,8 @@ async def generate_structured(
     # Configure litellm api key based on provider prefix
     if settings.llm_model.startswith("openai/"):
         litellm.api_key = settings.openai_api_key
+    elif settings.llm_model.startswith("openrouter/"):
+        litellm.api_key = settings.openrouter_api_key
 
     messages = [
         {"role": "system", "content": system_prompt},
@@ -44,6 +46,7 @@ async def generate_structured(
     ]
 
     try:
+        # We are using acompletion instead of completion (sync call) - to avoid blocking because the user is using an async function.
         response = await litellm.acompletion(
             model=settings.llm_model,
             messages=messages,
