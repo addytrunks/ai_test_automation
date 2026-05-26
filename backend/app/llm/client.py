@@ -39,6 +39,8 @@ async def generate_structured(
         litellm.api_key = settings.openai_api_key
     elif settings.llm_model.startswith("openrouter/"):
         litellm.api_key = settings.openrouter_api_key
+    elif settings.llm_model.startswith("gemini/"):
+        litellm.api_key = settings.gemini_api_key
 
     messages = [
         {"role": "system", "content": system_prompt},

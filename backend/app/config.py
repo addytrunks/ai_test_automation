@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     openai_api_key: str = Field("")
     openrouter_api_key: str = Field("")
     vampi_base_url: str = Field("http://localhost:5001")
+    gemini_api_key: str = Field("")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
