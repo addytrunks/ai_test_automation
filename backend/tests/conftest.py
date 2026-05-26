@@ -15,6 +15,7 @@ os.environ.setdefault("JWT_SECRET", "test-secret")
 os.environ.setdefault("JWT_ALGORITHM", "HS256")
 os.environ.setdefault("JWT_EXPIRES_MINUTES", "60")
 os.environ.setdefault("CORS_ORIGINS", "http://localhost:5173")
+os.environ.setdefault("LLM_MODEL", "deepseek/deepseek-chat")
 
 from app.config import get_settings  # noqa: E402
 from app.db import Base, get_db, get_engine, get_sessionmaker  # noqa: E402
