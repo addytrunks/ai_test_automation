@@ -64,3 +64,44 @@ export interface ProjectUpdatePayload {
   description?: string
   target_base_url?: string
 }
+
+export interface TestSuite {
+  id: string
+  project_id: string
+  spec_id: string
+  name: string
+  status: "pending" | "generating" | "ready" | "error"
+  created_at: string
+  updated_at: string
+}
+
+export interface TestAssertion {
+  type: string
+  target?: string
+  op?: string
+  expected?: unknown
+}
+
+export interface Test {
+  id: string
+  test_suite_id: string
+  endpoint_id: string
+  name: string
+  description: string | null
+  scenario_type: string
+  method: string
+  path: string
+  path_params: Record<string, unknown> | null
+  query_params: Record<string, unknown> | null
+  headers: Record<string, unknown> | null
+  body: Record<string, unknown> | null
+  expected_status: number
+  assertions: TestAssertion[] | null
+}
+
+export interface TestSuiteCreatePayload {
+  name: string
+  spec_id: string
+  endpoint_ids: string[]
+  scenarios?: string[]
+}

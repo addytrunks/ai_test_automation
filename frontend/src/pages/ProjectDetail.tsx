@@ -3,6 +3,7 @@ import { useState } from "react"
 import { Link, useParams } from "react-router-dom"
 
 import { getProject, getSpecs, uploadSpec } from "@/api/specs"
+import { getTestSuites } from "@/api/generator"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -26,6 +27,12 @@ export default function ProjectDetail() {
   const { data: specs, isLoading: specsLoading } = useQuery({
     queryKey: ["specs", projectId],
     queryFn: () => getSpecs(projectId!),
+    enabled: !!projectId,
+  })
+
+  const { data: testSuites, isLoading: testSuitesLoading } = useQuery({
+    queryKey: ["test-suites", projectId],
+    queryFn: () => getTestSuites(projectId!),
     enabled: !!projectId,
   })
 
@@ -159,6 +166,58 @@ export default function ProjectDetail() {
           </CardHeader>
         </Card>
       )}
+
+      {/* Test Suites list */}
+      <div className="mt-12">
+        <h2 className="text-lg font-semibold mb-4">Generated Test Suites</h2>
+        {testSuitesLoading ? (
+          <p className="text-sm text-slate-500">Loading test suites…</p>
+        ) : testSuites && testSuites.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {testSuites.map((suite) => (
+              <Card key={suite.id}>
+                <CardHeader>
+                  <div className="flex items-center justify-between mb-2">
+                    <CardTitle className="text-base truncate pr-2">
+                      {suite.name}
+                    </CardTitle>
+                    <span
+                      className={`shrink-0 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                        suite.status === "ready"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : suite.status === "error"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-blue-100 text-blue-700 animate-pulse"
+                      }`}
+                    >
+                      {suite.status}
+                    </span>
+                  </div>
+                  <CardDescription>
+                    Created {new Date(suite.created_at).toLocaleDateString("en-GB")}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Link to={`/test-suites/${suite.id}`}>
+                    <Button variant="outline" size="sm" className="w-full">
+                      View Tests
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">No test suites yet</CardTitle>
+              <CardDescription>
+                Go to a Spec's Endpoints to generate your first test suite.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        )}
+      </div>
     </div>
   )
 }

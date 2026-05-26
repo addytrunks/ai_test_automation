@@ -7,6 +7,7 @@ import EndpointExplorer from "@/pages/EndpointExplorer"
 import Login from "@/pages/Login"
 import ProjectDetail from "@/pages/ProjectDetail"
 import Register from "@/pages/Register"
+import TestSuiteDetail from "@/pages/TestSuiteDetail"
 
 function App() {
   return (
@@ -35,6 +36,14 @@ function App() {
         element={
           <ProtectedRoute>
             <EndpointExplorer />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/test-suites/:suiteId"
+        element={
+          <ProtectedRoute>
+            <TestSuiteDetail />
           </ProtectedRoute>
         }
       />
