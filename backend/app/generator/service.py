@@ -14,9 +14,9 @@ import logging
 import re
 import uuid
 
+from fastapi import BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import BackgroundTasks
 
 from app.generator.prompts import build_generation_prompt
 from app.generator.schemas import TestListResult, TestSuiteCreate
