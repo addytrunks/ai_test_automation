@@ -44,6 +44,11 @@ def create_app() -> FastAPI:
 
     app.include_router(specs_router, prefix="/api/v1", tags=["specs"])
 
+    # Generator router
+    from app.generator.router import router as generator_router
+
+    app.include_router(generator_router, prefix="/api/v1", tags=["generator"])
+
     return app
 
 
