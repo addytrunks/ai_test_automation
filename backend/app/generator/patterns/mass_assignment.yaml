@@ -1,4 +1,4 @@
-description: "Generate mass assignment tests that attempt to set privileged or read-only fields (e.g. admin, role, is_admin, balance) by injecting extra properties into request bodies. A vulnerable API will bind all incoming fields to the object without filtering, allowing privilege escalation. Tests send valid requests with additional unauthorized fields and assert those fields are NOT reflected in the response or applied to the resource."
+description: "Generate mass assignment tests that attempt to set privileged or read-only fields (e.g. admin, role, is_admin, balance) by injecting extra properties into request bodies. A vulnerable API will bind all incoming fields to the object without filtering, allowing privilege escalation. Tests send valid requests with additional unauthorized fields and assert those fields are NOT reflected in the response or applied to the resource. ALWAYS use {{USER_A_TOKEN}} for the Authorization header — never hardcode token strings."
 examples:
   - input: "Endpoint path: /users/register, method: POST, params: none, body: {username: string, password: string}"
     output:
@@ -16,8 +16,8 @@ examples:
       name: "Mass assignment to set role field during profile update"
       description: "Verifies the profile update endpoint strips unauthorized fields like role — a vulnerable API will update the user's role to the injected value"
       scenario_type: "mass_assignment"
-      headers: {"Authorization": "Bearer valid.token.for.current.user"}
-      path_params: {"id": "current-user-uuid"}
+      headers: {"Authorization": "Bearer {{USER_A_TOKEN}}"}
+      path_params: {"id": "{{USER_A_ID}}"}
       body: {"name": "Legit Name", "email": "legit@test.com", "role": "admin"}
       expected_status: 200
       assertions:

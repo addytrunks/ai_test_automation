@@ -1,34 +1,34 @@
-description: "Generate BOLA (Broken Object Level Authorization) tests that attempt to access or modify resources belonging to other users by manipulating resource IDs. Tests must include a valid Authorization header for User A while targeting a resource ID belonging to User B — this is the defining characteristic of BOLA: authenticated but unauthorized."
+description: "Generate BOLA (Broken Object Level Authorization) tests that attempt to access or modify resources belonging to other users by manipulating resource IDs. Tests must include a valid Authorization header for User A while targeting a resource ID belonging to User B — this is the defining characteristic of BOLA: authenticated but unauthorized. ALWAYS use {{USER_A_TOKEN}} and {{USER_B_ID}} template variables — never hardcode token strings or UUID placeholders."
 examples:
   - input: "Endpoint path: /users/{id}, method: GET, params: [{name: id, in: path, type: string}], body: none"
     output:
       name: "Access another user's profile while authenticated as a different user"
       description: "Verifies the API prevents User A from reading User B's profile by substituting a different user ID in the path, even with a valid token"
       scenario_type: "bola"
-      headers: {"Authorization": "Bearer valid.token.for.user.a"}
-      path_params: {"id": "user-b-uuid-1234"}
+      headers: {"Authorization": "Bearer {{USER_A_TOKEN}}"}
+      path_params: {"id": "{{USER_B_ID}}"}
       expected_status: 403
       assertions:
         - {type: "status_eq", expected: 403}
-        - {type: "body_not_contains", expected: "user-b-uuid-1234"}
+        - {type: "body_not_contains", expected: "{{USER_B_ID}}"}
   - input: "Endpoint path: /users/{id}, method: PUT, params: [{name: id, in: path, type: string}], body: {name: string}"
     output:
       name: "Modify another user's data while authenticated as a different user"
       description: "Verifies the API prevents User A from updating User B's profile by substituting a different user ID in the path, even with a valid token"
       scenario_type: "bola"
-      headers: {"Authorization": "Bearer valid.token.for.user.a"}
-      path_params: {"id": "user-b-uuid-5678"}
+      headers: {"Authorization": "Bearer {{USER_A_TOKEN}}"}
+      path_params: {"id": "{{USER_B_ID}}"}
       body: {"name": "Hacked Name"}
       expected_status: 403
       assertions:
         - {type: "status_eq", expected: 403}
   - input: "Endpoint path: /books/{id}, method: GET, params: [{name: id, in: path, type: integer}], body: none"
     output:
-      name: "Access another user's private resource by incrementing integer ID"
+      name: "Access another user's private resource by iterating integer ID"
       description: "Verifies the API rejects access to a resource owned by a different user when an authenticated user iterates through sequential integer IDs"
       scenario_type: "bola"
-      headers: {"Authorization": "Bearer valid.token.for.user.a"}
-      path_params: {"id": 2}
+      headers: {"Authorization": "Bearer {{USER_A_TOKEN}}"}
+      path_params: {"id": "{{TARGET_RESOURCE_ID}}"}
       expected_status: 403
       assertions:
         - {type: "status_eq", expected: 403}

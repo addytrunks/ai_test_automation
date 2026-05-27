@@ -44,15 +44,36 @@ def load_patterns(scenarios: list[str]) -> str:
     return patterns_text
 
 
+def _endpoint_requires_auth(endpoint_dict: dict[str, Any]) -> bool:
+    """Return True if the endpoint has a non-empty security requirement."""
+    security = endpoint_dict.get("security")
+    if security:
+        return True
+    # Also check if any parameter is named 'Authorization' (fallback heuristic)
+    for param in endpoint_dict.get("parameters") or []:
+        if isinstance(param, dict) and param.get("name", "").lower() == "authorization":
+            return True
+    return False
+
+
 def build_generation_prompt(endpoint_dict: dict[str, Any], scenarios: list[str]) -> str:
     """
     Assemble a full prompt for test generation.
 
     Structure: few-shot examples FIRST (so the model infers the pattern),
     then the task-specific endpoint details and instructions.
+
+    If the endpoint requires authentication and 'setup' is not already in the
+    requested scenarios, setup examples are prepended automatically so the model
+    knows to emit token-acquisition tests before auth-dependent tests.
     """
+    # Auto-inject setup scenario when endpoint requires auth
+    effective_scenarios = list(scenarios)
+    if _endpoint_requires_auth(endpoint_dict) and "setup" not in effective_scenarios:
+        effective_scenarios = ["setup"] + effective_scenarios
+
     endpoint_json = json.dumps(endpoint_dict, indent=2, default=str)
-    patterns = load_patterns(scenarios)
+    patterns = load_patterns(effective_scenarios)
 
     # Few-shot examples come first so the model sees the pattern before the task
     prompt = "Use the following examples to understand the expected test case format:\n"
@@ -60,7 +81,7 @@ def build_generation_prompt(endpoint_dict: dict[str, Any], scenarios: list[str])
     prompt += "---\n"
     prompt += "Now generate test cases for this API endpoint:\n\n"
     prompt += f"Endpoint details:\n{endpoint_json}\n\n"
-    prompt += f"Requested scenario types: {', '.join(scenarios)}\n\n"
+    prompt += f"Requested scenario types: {', '.join(effective_scenarios)}\n\n"
     prompt += "Instructions:\n"
     prompt += "- Generate at least 2 tests per scenario type.\n"
     prompt += "- path_params keys must exactly match the template variables in the path (e.g. {id} → key 'id').\n"
@@ -68,5 +89,10 @@ def build_generation_prompt(endpoint_dict: dict[str, Any], scenarios: list[str])
     prompt += "- Include at least one 'status_eq' or 'status_in' assertion per test.\n"
     prompt += "- For security tests (injection, bola, mass_assignment), include "
     prompt += "'body_not_contains' assertions to detect reflected payloads.\n"
+    prompt += "- NEVER use hardcoded token strings or UUID placeholders. "
+    prompt += "Use ONLY these template variables: {{USER_A_TOKEN}}, {{USER_B_TOKEN}}, "
+    prompt += "{{ADMIN_TOKEN}}, {{USER_A_ID}}, {{USER_B_ID}}, {{TARGET_RESOURCE_ID}}.\n"
+    prompt += "- If the endpoint requires authentication, emit setup tests first "
+    prompt += "with an 'extract' field that captures tokens from the login response.\n"
 
     return prompt

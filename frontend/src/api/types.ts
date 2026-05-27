@@ -97,6 +97,7 @@ export interface Test {
   body: Record<string, unknown> | null
   expected_status: number
   assertions: TestAssertion[] | null
+  extract: Record<string, string> | null
 }
 
 export interface TestSuiteCreatePayload {

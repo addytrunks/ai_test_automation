@@ -25,6 +25,7 @@ const SCENARIO_COLORS: Record<string, string> = {
   boundary: "bg-purple-100 text-purple-800",
   injection: "bg-rose-100 text-rose-800",
   mass_assignment: "bg-pink-100 text-pink-800",
+  setup: "bg-teal-100 text-teal-800",
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -77,6 +78,11 @@ function TestCard({ test }: { test: Test }) {
         {/* Assertions */}
         {test.assertions && test.assertions.length > 0 && (
           <CollapsibleJson label="Assertions" data={test.assertions} />
+        )}
+
+        {/* Extract (setup tests) */}
+        {test.extract && Object.keys(test.extract).length > 0 && (
+          <CollapsibleJson label="Extract → Runtime Context" data={test.extract} />
         )}
       </CardContent>
     </Card>

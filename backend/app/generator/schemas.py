@@ -41,7 +41,7 @@ class GeneratedTestSchema(BaseModel):
     description: str = Field(description="Detailed explanation of what the test verifies")
     scenario_type: Literal[
         "positive", "negative", "auth_bypass", "bola", "boundary", "injection",
-        "mass_assignment",
+        "mass_assignment", "setup",
     ]
 
     path_params: dict[str, Any] | None = Field(
@@ -52,6 +52,10 @@ class GeneratedTestSchema(BaseModel):
     )
     headers: dict[str, Any] | None = Field(default=None, description="HTTP headers")
     body: dict[str, Any] | None = Field(default=None, description="JSON request body")
+    extract: dict[str, str] | None = Field(
+        default=None,
+        description="Maps template variable names to JSONPath expressions for setup tests",
+    )
 
     expected_status: int = Field(description="Expected HTTP status code")
     assertions: list[AssertionSchema] = Field(
@@ -112,3 +116,4 @@ class TestRead(BaseModel):
     body: dict[str, Any] | None
     expected_status: int
     assertions: list[dict[str, Any]] | None
+    extract: dict[str, str] | None = None

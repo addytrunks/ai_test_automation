@@ -26,15 +26,38 @@ from app.models import Endpoint, Test, TestSuite
 logger = logging.getLogger(__name__)
 
 # System prompt with explicit schema contract so the model knows
-# exactly what JSON structure and assertion types are valid.
+# exactly what JSON structure, assertion types, and templating rules are valid.
 SYSTEM_PROMPT = (
     "You are an expert API security and QA engineer. Generate test cases as a JSON object "
     "with a 'tests' array. Each test must include: name (string), description (string), "
     "scenario_type (string), expected_status (int), assertions (array of objects with 'type' "
-    "and 'expected' fields). Optional fields: path_params, query_params, headers, body. "
+    "and 'expected' fields). Optional fields: path_params, query_params, headers, body, extract.\n\n"
+
+    "Valid scenario_type values: positive, negative, boundary, bola, auth_bypass, injection, "
+    "mass_assignment, setup.\n\n"
+
     "Valid assertion types: status_eq, status_in, body_contains, body_not_contains, "
-    "json_path, header_eq, response_time_lt. Return ONLY the JSON object, no markdown, "
-    "no explanation and no preamble."
+    "json_path, header_eq, response_time_lt.\n\n"
+
+    "TEMPLATE VARIABLE CONTRACT — THIS IS MANDATORY:\n"
+    "Never use hardcoded placeholder strings for tokens, passwords, or dynamic resource IDs. "
+    "You MUST use double-brace template variables for any value that will be resolved at runtime. "
+    "The only valid token variables are: {{USER_A_TOKEN}}, {{USER_B_TOKEN}}, {{ADMIN_TOKEN}}. "
+    "The only valid ID variables are: {{USER_A_ID}}, {{USER_B_ID}}, {{TARGET_RESOURCE_ID}}. "
+    "Examples of FORBIDDEN values: 'valid.token.for.user.a', 'Bearer <token>', 'user-b-uuid-1234', "
+    "'current-user-uuid', 'some_token'. "
+    "If you use any of these forbidden patterns instead of the template variables above, "
+    "the output will be rejected.\n\n"
+
+    "SETUP TESTS:\n"
+    "When an endpoint requires authentication (i.e. it has a security scheme), you MUST first "
+    "generate setup tests that acquire the required tokens. A setup test has "
+    "scenario_type='setup' and an 'extract' field: a dict mapping template variable names to "
+    "JSONPath expressions that extract them from the response body. "
+    "Example: extract: {\"USER_A_TOKEN\": \"$.auth_token\"}. "
+    "Setup tests must appear BEFORE any tests that use the tokens they produce.\n\n"
+
+    "Return ONLY the JSON object, no markdown, no explanation, no preamble."
 )
 
 
@@ -77,6 +100,11 @@ async def _generate_for_endpoint(
     # Validate tests against endpoint
     valid_tests = []
     for t_data in result.tests:
+        # Setup tests don't need to match path vars — they hit auth endpoints independently
+        if t_data.scenario_type == "setup":
+            valid_tests.append(t_data)
+            continue
+
         # If the endpoint path has template variables, verify the test provides
         # path_params with keys that actually match those variables
         if path_vars and not path_vars.issubset(set(t_data.path_params or {})):
@@ -87,6 +115,21 @@ async def _generate_for_endpoint(
                 t_data.path_params,
             )
             continue
+
+        # Reject tests that contain forbidden placeholder patterns in headers or body
+        serialized = str(t_data.headers or "") + str(t_data.body or "")
+        forbidden_patterns = [
+            "valid.token", "<token>", "<insert", "user-b-uuid", "current-user-uuid",
+            "Bearer some", "Bearer <",
+        ]
+        if any(p in serialized for p in forbidden_patterns):
+            logger.warning(
+                "Skipping test '%s': contains forbidden placeholder string in headers/body. "
+                "Generator must use {{TEMPLATE_VARS}} instead.",
+                t_data.name,
+            )
+            continue
+
         valid_tests.append(t_data)
 
     # Persist valid tests
@@ -105,6 +148,7 @@ async def _generate_for_endpoint(
             body=t_data.body,
             expected_status=t_data.expected_status,
             assertions=[a.model_dump(exclude_none=True) for a in t_data.assertions],
+            extract=getattr(t_data, "extract", None),
         )
         db.add(test_obj)
 
