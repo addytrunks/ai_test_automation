@@ -3,7 +3,19 @@ import { useState } from "react"
 import { Link, useParams } from "react-router-dom"
 
 import { getProject, getSpecs, uploadSpec } from "@/api/specs"
-import { getTestSuites } from "@/api/generator"
+import { getTestSuites, deleteTestSuite } from "@/api/generator"
+import { Trash2 } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -51,6 +63,13 @@ export default function ProjectDetail() {
         (err as { response?: { data?: { detail?: string } } }).response?.data?.detail ??
         "Upload failed"
       setUploadError(msg)
+    },
+  })
+
+  const deleteSuiteMutation = useMutation({
+    mutationFn: (suiteId: string) => deleteTestSuite(suiteId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["test-suites", projectId] })
     },
   })
 
@@ -198,11 +217,44 @@ export default function ProjectDetail() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Link to={`/test-suites/${suite.id}`}>
-                    <Button variant="outline" size="sm" className="w-full">
-                      View Tests
-                    </Button>
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link to={`/test-suites/${suite.id}`} className="flex-1">
+                      <Button variant="outline" size="sm" className="w-full">
+                        View Tests
+                      </Button>
+                    </Link>
+                    <AlertDialog>
+                      <AlertDialogTrigger 
+                        render={
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="text-red-500 hover:text-red-600 hover:bg-red-50 px-2"
+                            title="Delete test suite"
+                          />
+                        }
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently delete the test suite "{suite.name}" and all of its generated test cases.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction 
+                            onClick={() => deleteSuiteMutation.mutate(suite.id)}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                          >
+                            Delete Suite
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </CardContent>
               </Card>
             ))}

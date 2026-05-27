@@ -215,6 +215,14 @@ async def get_tests(db: AsyncSession, suite_id: uuid.UUID) -> list[Test]:
     result = await db.execute(
         select(Test)
         .where(Test.test_suite_id == suite_id)
-        .order_by(Test.scenario_type, Test.name)
+        .order_by(Test.path, Test.method, Test.scenario_type)
     )
     return list(result.scalars().all())
+
+
+async def delete_test_suite(db: AsyncSession, suite_id: uuid.UUID) -> None:
+    """Delete a test suite by ID."""
+    suite = await get_test_suite(db, suite_id)
+    if suite:
+        await db.delete(suite)
+        await db.commit()

@@ -40,14 +40,6 @@ function TestCard({ test }: { test: Test }) {
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2 flex-wrap">
           <span
-            className={`inline-block rounded px-2 py-0.5 text-xs font-semibold uppercase ${METHOD_COLORS[test.method] ?? "bg-slate-100 text-slate-800"}`}
-          >
-            {test.method}
-          </span>
-          <code className="text-xs text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-            {test.path}
-          </code>
-          <span
             className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${SCENARIO_COLORS[test.scenario_type] ?? "bg-slate-100 text-slate-700"}`}
           >
             {test.scenario_type.replace("_", " ")}
@@ -211,12 +203,36 @@ export default function TestSuiteDetail() {
             <p className="text-sm text-slate-500">Loading tests…</p>
           ) : tests && tests.length > 0 ? (
             <>
-              <p className="text-sm text-slate-500 mb-4">
+              <p className="text-sm text-slate-500 mb-6">
                 {tests.length} test{tests.length !== 1 ? "s" : ""} generated
               </p>
-              <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
-                {tests.map((test) => (
-                  <TestCard key={test.id} test={test} />
+              <div className="space-y-10">
+                {Object.entries(
+                  tests.reduce<Record<string, Test[]>>((acc, test) => {
+                    const key = `${test.method} ${test.path}`;
+                    if (!acc[key]) acc[key] = [];
+                    acc[key].push(test);
+                    return acc;
+                  }, {})
+                ).map(([endpoint, endpointTests]) => (
+                  <div key={endpoint} className="space-y-4">
+                    <h2 className="flex items-center gap-3 border-b pb-2">
+                      <span className={`inline-block rounded px-2 py-1 text-xs font-bold uppercase tracking-wider ${METHOD_COLORS[endpoint.split(' ')[0]] ?? "bg-slate-100 text-slate-800"}`}>
+                        {endpoint.split(' ')[0]}
+                      </span>
+                      <code className="text-base font-semibold text-slate-800">
+                        {endpoint.split(' ').slice(1).join(' ')}
+                      </code>
+                      <span className="text-xs font-medium text-slate-400 ml-auto">
+                        {endpointTests.length} tests
+                      </span>
+                    </h2>
+                    <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
+                      {endpointTests.map((test) => (
+                        <TestCard key={test.id} test={test} />
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </>

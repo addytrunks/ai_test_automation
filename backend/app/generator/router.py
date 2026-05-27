@@ -100,3 +100,24 @@ async def list_tests(
         raise HTTPException(status_code=404, detail="Test suite not found")
 
     return await service.get_tests(db, suite_id)  # type: ignore[return-value]
+
+
+@router.delete("/test-suites/{suite_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_suite(
+    suite_id: uuid.UUID,
+    user: CurrentUser,
+    db: DbSession,
+) -> None:
+    """Delete a test suite and all its generated tests."""
+    suite = await service.get_test_suite(db, suite_id)
+    if not suite:
+        raise HTTPException(status_code=404, detail="Test suite not found")
+
+    # Verify ownership via project
+    result = await db.execute(
+        select(Project).where(Project.id == suite.project_id, Project.user_id == user.id)
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Test suite not found")
+
+    await service.delete_test_suite(db, suite_id)

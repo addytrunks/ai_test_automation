@@ -28,3 +28,7 @@ export async function getTests(suiteId: string): Promise<Test[]> {
   const { data } = await apiClient.get<Test[]>(`/test-suites/${suiteId}/tests`)
   return data
 }
+
+export async function deleteTestSuite(suiteId: string): Promise<void> {
+  await apiClient.delete(`/test-suites/${suiteId}`)
+}
