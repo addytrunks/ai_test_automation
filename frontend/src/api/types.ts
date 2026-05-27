@@ -99,6 +99,7 @@ export interface Test {
   expected_status: number
   assertions: TestAssertion[] | null
   extract: Record<string, string> | null
+  static_context: Record<string, string> | null
 }
 
 export interface TestSuiteCreatePayload {

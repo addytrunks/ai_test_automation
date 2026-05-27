@@ -181,6 +181,10 @@ class Test(Base):
         JSONB().with_variant(JSON, "sqlite"), nullable=True,
         comment="Maps template var names to JSONPath expressions for setup tests",
     )
+    static_context: Mapped[dict[str, str] | None] = mapped_column(
+        JSONB().with_variant(JSON, "sqlite"), nullable=True,
+        comment="Static variable mappings for runtime context (e.g. USER_B_ID: 'user2')",
+    )
 
     auto_generated: Mapped[bool] = mapped_column(Boolean, default=False)
     parent_coverage_gap_id: Mapped[uuid.UUID | None] = mapped_column(

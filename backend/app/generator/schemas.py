@@ -56,6 +56,10 @@ class GeneratedTestSchema(BaseModel):
         default=None,
         description="Maps template variable names to JSONPath expressions for setup tests",
     )
+    static_context: dict[str, str] | None = Field(
+        default=None,
+        description="Static variable mappings for runtime context (e.g. USER_B_ID: 'user2')",
+    )
 
     expected_status: int = Field(description="Expected HTTP status code")
     assertions: list[AssertionSchema] = Field(
@@ -117,3 +121,7 @@ class TestRead(BaseModel):
     expected_status: int
     assertions: list[dict[str, Any]] | None
     extract: dict[str, str] | None = None
+    static_context: dict[str, str] | None = None
+    auto_generated: bool
+    parent_coverage_gap_id: uuid.UUID | None
+    status: str | None

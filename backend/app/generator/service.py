@@ -14,7 +14,7 @@ import logging
 import re
 import uuid
 
-from fastapi import BackgroundTasks
+from fastapi import BackgroundTasks, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -55,6 +55,9 @@ SYSTEM_PROMPT = (
     "scenario_type='setup' and an 'extract' field: a dict mapping template variable names to "
     "JSONPath expressions that extract them from the response body. "
     "Example: extract: {\"USER_A_TOKEN\": \"$.auth_token\"}. "
+    "If the login response does not return the user's ID, you MUST define it using the 'static_context' "
+    "field, mapping the template variable (e.g. USER_A_ID) to the static identifier used in the login request. "
+    "Example: static_context: {\"USER_A_ID\": \"user1\"}. "
     "Setup tests must appear BEFORE any tests that use the tokens they produce.\n\n"
 
     "Return ONLY the JSON object, no markdown, no explanation, no preamble."
@@ -66,6 +69,7 @@ async def _generate_for_endpoint(
     suite_id: uuid.UUID,
     endpoint: Endpoint,
     scenarios: list[str],
+    auth_endpoint: Endpoint | None = None,
 ) -> int:
     """
     Generate tests for a single endpoint and save them.
@@ -80,9 +84,21 @@ async def _generate_for_endpoint(
         "parameters": endpoint.parameters,
         "request_body": endpoint.request_body,
         "responses": endpoint.responses,
+        "security": endpoint.security,
     }
 
-    prompt = build_generation_prompt(ep_dict, scenarios)
+    auth_ep_dict = None
+    if auth_endpoint:
+        auth_ep_dict = {
+            "method": auth_endpoint.method,
+            "path": auth_endpoint.path,
+            "summary": auth_endpoint.summary,
+            "parameters": auth_endpoint.parameters,
+            "request_body": auth_endpoint.request_body,
+            "responses": auth_endpoint.responses,
+        }
+
+    prompt = build_generation_prompt(ep_dict, scenarios, auth_ep_dict)
 
     # Call LLM with structured output
     # temperature=0.3: low enough for deterministic, spec-faithful output,
@@ -149,6 +165,7 @@ async def _generate_for_endpoint(
             expected_status=t_data.expected_status,
             assertions=[a.model_dump(exclude_none=True) for a in t_data.assertions],
             extract=getattr(t_data, "extract", None),
+            static_context=getattr(t_data, "static_context", None),
         )
         db.add(test_obj)
 
@@ -159,6 +176,7 @@ async def generate_test_suite_task(
     suite_id: uuid.UUID,
     endpoint_ids: list[uuid.UUID],
     scenarios: list[str],
+    auth_endpoint_id: uuid.UUID | None = None,
 ) -> None:
     """
     Background task entry point for test generation.
@@ -181,6 +199,10 @@ async def generate_test_suite_task(
         suite.status = "generating"
         await db.commit()
 
+        auth_endpoint = None
+        if auth_endpoint_id:
+            auth_endpoint = await db.scalar(select(Endpoint).where(Endpoint.id == auth_endpoint_id))
+
         total_tests = 0
         for ep_id in endpoint_ids:
             endpoint = await db.scalar(select(Endpoint).where(Endpoint.id == ep_id))
@@ -188,7 +210,7 @@ async def generate_test_suite_task(
                 logger.warning("Endpoint %s not found, skipping", ep_id)
                 continue
             try:
-                count = await _generate_for_endpoint(db, suite_id, endpoint, scenarios)
+                count = await _generate_for_endpoint(db, suite_id, endpoint, scenarios, auth_endpoint)
                 await db.commit()  # persist this endpoint's tests before moving on
                 total_tests += count
                 logger.info(
@@ -220,6 +242,45 @@ async def create_test_suite(
     background_tasks: BackgroundTasks,
 ) -> TestSuite:
     """Create a test suite record and kick off background generation."""
+    
+    # Load all endpoints for this spec to check security requirements and find auth endpoint
+    result = await db.execute(select(Endpoint).where(Endpoint.spec_id == payload.spec_id))
+    all_endpoints = list(result.scalars().all())
+    
+    # Identify selected endpoints
+    selected_endpoints = [ep for ep in all_endpoints if ep.id in payload.endpoint_ids]
+    
+    # Check if any selected endpoint requires auth
+    requires_auth = False
+    for ep in selected_endpoints:
+        if ep.security and len(ep.security) > 0:
+            requires_auth = True
+            break
+        for p in (ep.parameters or []):
+            if p.get("name") == "Authorization":
+                requires_auth = True
+                break
+
+    auth_endpoint_id = None
+    if requires_auth:
+        # Heuristic: find POST endpoints with login/auth/token in path
+        candidates = []
+        for ep in all_endpoints:
+            if ep.method.lower() == "post":
+                path_lower = ep.path.lower()
+                if any(k in path_lower for k in ["login", "auth", "token", "signin", "sessions"]):
+                    candidates.append(ep)
+        
+        if len(candidates) == 1:
+            auth_endpoint_id = candidates[0].id
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Could not auto-detect a unique authentication endpoint (found {len(candidates)} candidates). "
+                "Generation of authenticated test suites requires an auth endpoint config. "
+                "(Manual UI configuration pending in Week 4)."
+            )
+
     suite = TestSuite(
         project_id=project_id,
         spec_id=payload.spec_id,
@@ -232,7 +293,7 @@ async def create_test_suite(
 
     # Enqueue background generation
     background_tasks.add_task(
-        generate_test_suite_task, suite.id, payload.endpoint_ids, payload.scenarios
+        generate_test_suite_task, suite.id, payload.endpoint_ids, payload.scenarios, auth_endpoint_id
     )
 
     return suite

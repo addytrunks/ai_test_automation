@@ -80,9 +80,12 @@ function TestCard({ test }: { test: Test }) {
           <CollapsibleJson label="Assertions" data={test.assertions} />
         )}
 
-        {/* Extract (setup tests) */}
+        {/* Extract & Static Context (setup tests) */}
         {test.extract && Object.keys(test.extract).length > 0 && (
           <CollapsibleJson label="Extract → Runtime Context" data={test.extract} />
+        )}
+        {test.static_context && Object.keys(test.static_context).length > 0 && (
+          <CollapsibleJson label="Static → Runtime Context" data={test.static_context} />
         )}
       </CardContent>
     </Card>

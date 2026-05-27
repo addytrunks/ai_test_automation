@@ -56,9 +56,11 @@ def _endpoint_requires_auth(endpoint_dict: dict[str, Any]) -> bool:
     return False
 
 
-def build_generation_prompt(endpoint_dict: dict[str, Any], scenarios: list[str]) -> str:
+def build_generation_prompt(
+    endpoint_dict: dict[str, Any], scenarios: list[str], auth_endpoint_dict: dict[str, Any] | None = None
+) -> str:
     """
-    Assemble a full prompt for test generation.
+    Builds the complete prompt string to send to the LLM.
 
     Structure: few-shot examples FIRST (so the model infers the pattern),
     then the task-specific endpoint details and instructions.
@@ -81,6 +83,10 @@ def build_generation_prompt(endpoint_dict: dict[str, Any], scenarios: list[str])
     prompt += "---\n"
     prompt += "Now generate test cases for this API endpoint:\n\n"
     prompt += f"Endpoint details:\n{endpoint_json}\n\n"
+    if auth_endpoint_dict and "setup" in effective_scenarios:
+        auth_json = json.dumps(auth_endpoint_dict, indent=2, default=str)
+        prompt += f"Authentication Endpoint details (use this to generate setup tests):\n{auth_json}\n\n"
+        
     prompt += f"Requested scenario types: {', '.join(effective_scenarios)}\n\n"
     prompt += "Instructions:\n"
     prompt += "- Generate at least 2 tests per scenario type.\n"
