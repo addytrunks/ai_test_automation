@@ -99,6 +99,10 @@ class Endpoint(Base):
     responses: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB().with_variant(JSON, "sqlite"), nullable=True
     )
+    security: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONB().with_variant(JSON, "sqlite"), nullable=True,
+        comment="Per-operation security requirements from OpenAPI spec",
+    )
 
 
 class TestSuite(Base):

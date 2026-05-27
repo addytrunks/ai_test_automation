@@ -90,6 +90,7 @@ async def ingest_spec(
             parameters=ep_data["parameters"],
             request_body=ep_data["request_body"],
             responses=ep_data["responses"],
+            security=ep_data.get("security"),
         )
         db.add(ep)
         endpoints.append(ep)

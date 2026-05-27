@@ -51,6 +51,7 @@ export interface Endpoint {
   parameters: Record<string, unknown>[] | null
   request_body: Record<string, unknown> | null
   responses: Record<string, unknown> | null
+  security: Record<string, unknown>[] | null
 }
 
 export interface ProjectCreatePayload {

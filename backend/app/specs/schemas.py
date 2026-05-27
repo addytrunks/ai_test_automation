@@ -52,3 +52,4 @@ class EndpointRead(BaseModel):
     parameters: list[dict[str, Any]] | None
     request_body: dict[str, Any] | None
     responses: dict[str, Any] | None
+    security: list[dict[str, Any]] | None = None

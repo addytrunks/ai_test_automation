@@ -52,6 +52,7 @@ def parse_openapi_spec(
                     "parameters": operation.get("parameters", []),
                     "request_body": operation.get("requestBody"),
                     "responses": operation.get("responses", {}),
+                    "security": operation.get("security"),
                 }
             )
 
