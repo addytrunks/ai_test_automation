@@ -130,9 +130,24 @@ async def _generate_for_endpoint(
     # Extract path template variables (e.g. "/users/{id}" -> {"id"})
     path_vars = set(re.findall(r"\{(\w+)\}", endpoint.path))
 
+    # Only allow scenario types that were actually requested (plus "setup" if an auth endpoint is present)
+    allowed_scenarios = set(scenarios)
+    if auth_endpoint:
+        allowed_scenarios.add("setup")
+
     # Validate tests against endpoint
     valid_tests = []
     for t_data in result.tests:
+        # Reject tests belonging to scenarios that were not requested
+        if t_data.scenario_type not in allowed_scenarios:
+            logger.warning(
+                "Skipping test '%s': scenario_type '%s' was not requested (allowed: %s)",
+                t_data.name,
+                t_data.scenario_type,
+                allowed_scenarios,
+            )
+            continue
+
         # Setup tests don't need to match path vars — they hit auth endpoints independently
         if t_data.scenario_type == "setup":
             valid_tests.append(t_data)

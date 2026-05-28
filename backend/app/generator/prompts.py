@@ -89,6 +89,7 @@ def build_generation_prompt(
         
     prompt += f"Requested scenario types: {', '.join(effective_scenarios)}\n\n"
     prompt += "Instructions:\n"
+    prompt += "- STRICT CONSTRAINT: ONLY generate test cases for the scenario types listed under 'Requested scenario types' above. Do NOT generate test cases for positive, negative, boundary, or any other scenario type unless it is explicitly requested above.\n"
     prompt += "- Generate at least 2 tests per scenario type.\n"
     prompt += "- path_params keys must exactly match the template variables in the path (e.g. {id} → key 'id').\n"
     prompt += "- Include appropriate headers (like Content-Type: application/json).\n"
