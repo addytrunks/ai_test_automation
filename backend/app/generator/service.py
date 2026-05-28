@@ -25,6 +25,67 @@ from app.models import Endpoint, Test, TestSuite
 
 logger = logging.getLogger(__name__)
 
+
+# ---------------------------------------------------------------------------
+# Endpoint-level guardrails (mirrors frontend SCENARIO_RULES)
+# ---------------------------------------------------------------------------
+
+def _ep_has_path_params(ep: Endpoint) -> bool:
+    """True if the endpoint path contains template variables like {id}."""
+    return bool(re.search(r"\{[^}]+\}", ep.path))
+
+
+def _ep_has_request_body(ep: Endpoint) -> bool:
+    """True if the endpoint accepts a JSON request body (POST/PUT/PATCH)."""
+    return bool(ep.request_body) and ep.method.lower() in ("post", "put", "patch")
+
+
+def _ep_has_inputs(ep: Endpoint) -> bool:
+    """True if the endpoint has parameters or a request body."""
+    return _ep_has_request_body(ep) or bool(ep.parameters)
+
+
+def _ep_has_auth(ep: Endpoint) -> bool:
+    """True if the endpoint has a security requirement."""
+    if ep.security and len(ep.security) > 0:
+        return True
+    for p in (ep.parameters or []):
+        if isinstance(p, dict) and p.get("name", "").lower() == "authorization":
+            return True
+    return False
+
+
+def _filter_scenarios_for_endpoint(ep: Endpoint, scenarios: list[str]) -> list[str]:
+    """Remove scenarios that are structurally impossible for this endpoint.
+
+    This is the backend counterpart of the frontend SCENARIO_RULES guardrails.
+    Prevents the LLM from receiving prompts for impossible scenario/endpoint
+    combinations (e.g. BOLA on a public endpoint with no path params).
+    """
+    filtered = []
+    for s in scenarios:
+        if s == "bola" and (not _ep_has_path_params(ep) or not _ep_has_auth(ep)):
+            logger.info("  ↳ Stripped '%s' — endpoint lacks path params or auth", s)
+            continue
+        if s == "auth_bypass" and not _ep_has_auth(ep):
+            logger.info("  ↳ Stripped '%s' — endpoint has no security requirement", s)
+            continue
+        if s == "mass_assignment" and not _ep_has_request_body(ep):
+            logger.info("  ↳ Stripped '%s' — endpoint has no request body", s)
+            continue
+        if s == "injection" and not _ep_has_inputs(ep):
+            logger.info("  ↳ Stripped '%s' — endpoint has no injectable inputs", s)
+            continue
+        if s == "boundary" and not _ep_has_inputs(ep):
+            logger.info("  ↳ Stripped '%s' — endpoint has no inputs for boundary testing", s)
+            continue
+        if s == "positive" and not _ep_has_inputs(ep):
+            logger.info("  ↳ Stripped '%s' — endpoint has no documented inputs", s)
+            continue
+        filtered.append(s)
+    return filtered
+
+
 # System prompt with explicit schema contract so the model knows
 # exactly what JSON structure, assertion types, and templating rules are valid.
 SYSTEM_PROMPT = (
@@ -259,7 +320,15 @@ async def generate_test_suite_task(
                 idx, len(endpoint_ids), endpoint.method, endpoint.path,
             )
             try:
-                count = await _generate_for_endpoint(db, suite_id, endpoint, scenarios, auth_endpoint)
+                # Filter scenarios to only those that make structural sense for this endpoint
+                ep_scenarios = _filter_scenarios_for_endpoint(endpoint, scenarios)
+                if not ep_scenarios:
+                    logger.info(
+                        "  ⊘ All scenarios stripped for %s %s — skipping LLM call entirely",
+                        endpoint.method, endpoint.path,
+                    )
+                    continue
+                count = await _generate_for_endpoint(db, suite_id, endpoint, ep_scenarios, auth_endpoint)
                 await db.commit()  # persist this endpoint's tests before moving on
                 total_tests += count
                 logger.info(
