@@ -124,4 +124,3 @@ class TestRead(BaseModel):
     static_context: dict[str, str] | None = None
     auto_generated: bool
     parent_coverage_gap_id: uuid.UUID | None
-    status: str | None

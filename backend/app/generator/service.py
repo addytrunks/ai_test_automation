@@ -76,6 +76,11 @@ async def _generate_for_endpoint(
 
     Returns the number of valid tests saved.
     """
+    logger.info(
+        "[STEP 1/5] Building prompt for %s %s (scenarios: %s)",
+        endpoint.method, endpoint.path, ", ".join(scenarios),
+    )
+
     # Convert endpoint ORM object to dict for the prompt
     ep_dict = {
         "method": endpoint.method,
@@ -97,17 +102,29 @@ async def _generate_for_endpoint(
             "request_body": auth_endpoint.request_body,
             "responses": auth_endpoint.responses,
         }
+        logger.info(
+            "[STEP 1/5] Auth endpoint detected: %s %s — injecting into prompt",
+            auth_endpoint.method, auth_endpoint.path,
+        )
 
     prompt = build_generation_prompt(ep_dict, scenarios, auth_ep_dict)
 
+    logger.info(
+        "[STEP 2/5] Calling LLM (prompt length: %d chars)...", len(prompt),
+    )
+
     # Call LLM with structured output
-    # temperature=0.3: low enough for deterministic, spec-faithful output,
-    # high enough to allow variation across scenario types. Tunable in Week 7 evaluation.
+    # temperature=0.7: balanced between deterministic output and variation.
+    # Tunable in Week 7 evaluation.
     result = await generate_structured(
         prompt=prompt,
         response_model=TestListResult,
         system_prompt=SYSTEM_PROMPT,
-        temperature=0.3,
+        temperature=0.7,
+    )
+
+    logger.info(
+        "[STEP 3/5] LLM returned %d raw tests. Validating...", len(result.tests),
     )
 
     # Extract path template variables (e.g. "/users/{id}" -> {"id"})
@@ -148,13 +165,18 @@ async def _generate_for_endpoint(
 
         valid_tests.append(t_data)
 
-    # Persist valid tests
+    logger.info(
+        "[STEP 4/5] Validation complete: %d/%d tests passed. Persisting to DB...",
+        len(valid_tests), len(result.tests),
+    )
+
+    # Persist valid tests (truncate name/description to fit DB column limits)
     for t_data in valid_tests:
         test_obj = Test(
             test_suite_id=suite_id,
             endpoint_id=endpoint.id,
-            name=t_data.name,
-            description=t_data.description,
+            name=(t_data.name or "")[:255],
+            description=(t_data.description or "")[:1024],
             scenario_type=t_data.scenario_type,
             method=endpoint.method,
             path=endpoint.path,
@@ -169,6 +191,7 @@ async def _generate_for_endpoint(
         )
         db.add(test_obj)
 
+    logger.info("[STEP 5/5] Persisted %d tests for %s %s ✓", len(valid_tests), endpoint.method, endpoint.path)
     return len(valid_tests)
 
 
@@ -203,18 +226,30 @@ async def generate_test_suite_task(
         if auth_endpoint_id:
             auth_endpoint = await db.scalar(select(Endpoint).where(Endpoint.id == auth_endpoint_id))
 
+        logger.info(
+            "━━━ Suite %s: starting generation for %d endpoints (scenarios: %s) ━━━",
+            suite_id, len(endpoint_ids), ", ".join(scenarios),
+        )
+        if auth_endpoint:
+            logger.info("Auth endpoint resolved: %s %s", auth_endpoint.method, auth_endpoint.path)
+
         total_tests = 0
-        for ep_id in endpoint_ids:
+        for idx, ep_id in enumerate(endpoint_ids, 1):
             endpoint = await db.scalar(select(Endpoint).where(Endpoint.id == ep_id))
             if not endpoint:
                 logger.warning("Endpoint %s not found, skipping", ep_id)
                 continue
+            logger.info(
+                "━━━ [Endpoint %d/%d] %s %s ━━━",
+                idx, len(endpoint_ids), endpoint.method, endpoint.path,
+            )
             try:
                 count = await _generate_for_endpoint(db, suite_id, endpoint, scenarios, auth_endpoint)
                 await db.commit()  # persist this endpoint's tests before moving on
                 total_tests += count
                 logger.info(
-                    "Generated %d tests for %s %s", count, endpoint.method, endpoint.path
+                    "✓ Endpoint %d/%d done: %d tests for %s %s",
+                    idx, len(endpoint_ids), count, endpoint.method, endpoint.path,
                 )
             except Exception:
                 logger.exception(
