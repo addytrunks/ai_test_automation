@@ -376,7 +376,7 @@ async def create_test_suite(
             requires_auth = True
             break
         for p in (ep.parameters or []):
-            if p.get("name") == "Authorization":
+            if isinstance(p, dict) and p.get("name", "").lower() == "authorization":
                 requires_auth = True
                 break
 
