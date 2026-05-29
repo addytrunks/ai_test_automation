@@ -1,7 +1,5 @@
 # Week 4 Implementation Plan — Runner & Failure Analysis
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Execute the generated test cases against a live target API using `httpx`. Evaluate assertions (using `jsonpath-ng`). For any failed test, pass the request/response details back to the LLM to generate an explanation and fix.
 
 **Architecture:** We add the `runs`, `test_results`, and `ai_analyses` tables. The `runner` module handles async HTTP requests and assertion evaluation. The `analyzer` module handles sending failure data to LiteLLM. A background task runs the tests and performs the analysis. The UI gains a Run Detail view with test status indicators and a panel for AI analysis of failures.
