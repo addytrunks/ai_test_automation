@@ -55,6 +55,16 @@ def create_app() -> FastAPI:
 
     app.include_router(generator_router, prefix="/api/v1", tags=["generator"])
 
+    # Runner router
+    from app.runner.router import router as runner_router
+
+    app.include_router(runner_router, prefix="/api/v1", tags=["runner"])
+
+    # Analyzer router
+    from app.analyzer.router import router as analyzer_router
+
+    app.include_router(analyzer_router, prefix="/api/v1", tags=["analyzer"])
+
     return app
 
 
