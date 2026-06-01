@@ -11,7 +11,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 # ---------------------------------------------------------------------------
 # LLM output schema — enforced via generate_structured()
 # ---------------------------------------------------------------------------

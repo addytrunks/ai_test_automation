@@ -12,7 +12,6 @@ import uuid
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.analyzer.schemas import AIAnalysisRead, RunCreate, RunRead, TestResultRead
 from app.deps import CurrentUser, DbSession
@@ -93,7 +92,7 @@ async def trigger_run(
     db: DbSession,
 ) -> RunRead:
     """Trigger a test run for a suite against a target URL."""
-    suite = await _verify_suite_ownership(db, suite_id, user.id)
+    await _verify_suite_ownership(db, suite_id, user.id)
 
     # Verify suite has tests
     test_count = await db.execute(
@@ -177,7 +176,7 @@ async def get_analysis(
     Returns 404 if the analysis hasn't been generated yet.
     The frontend uses this to show a loading spinner while the run is in 'analyzing' status.
     """
-    tr = await _verify_test_result_ownership(db, result_id, user.id)
+    await _verify_test_result_ownership(db, result_id, user.id)
 
     result = await db.execute(
         select(AIAnalysis).where(AIAnalysis.test_result_id == result_id)

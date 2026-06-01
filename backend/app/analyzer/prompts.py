@@ -29,10 +29,7 @@ def _truncate_body(body: dict[str, Any] | str | None) -> str:
     """
     if body is None:
         return "<empty>"
-    if isinstance(body, dict):
-        s = json.dumps(body, separators=(",", ":"))
-    else:
-        s = str(body)
+    s = json.dumps(body, separators=(",", ":")) if isinstance(body, dict) else str(body)
     if len(s) > MAX_BODY_CHARS:
         return s[:MAX_BODY_CHARS] + "\n[TRUNCATED]"
     return s
