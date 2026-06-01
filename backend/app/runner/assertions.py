@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from jsonpath_ng import parse as jp_parse
+from jsonpath_ng import parse as jp_parse  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 

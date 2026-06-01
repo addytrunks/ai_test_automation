@@ -6,10 +6,8 @@ Covers all 7 assertion types plus edge cases:
   - Edge: empty assertions, non-dict body with json_path, malformed jsonpath
 """
 
-import pytest
 
 from app.runner.assertions import evaluate_assertions
-
 
 # ── Shared fixtures ──────────────────────────────────────────────────────────
 
