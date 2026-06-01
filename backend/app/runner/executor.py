@@ -16,7 +16,7 @@ import logging
 import re
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -157,10 +157,10 @@ async def execute_run(
         return
 
     run.status = "running"
-    run.started_at = datetime.now(timezone.utc)
+    run.started_at = datetime.now(UTC)
     await db.commit()
 
-    summary = {"total": len(tests), "passed": 0, "failed": 0, "errors": 0}
+    summary = {"total": len(tests), "passed": 0, "failed": 0, "errors": 0, "skipped": 0}
     runtime_context: dict[str, str] = {}
 
     # Split tests into setup and execution phases
@@ -180,19 +180,21 @@ async def execute_run(
                         test.name,
                         list(test.extract.keys()),
                     )
-                    summary["total"] -= 1  # don't count skipped in total
+                    summary["skipped"] += 1
                     continue
 
                 tr = await _execute_single_test(
                     client, db, run, test, base_url, runtime_context
                 )
 
-                # Extract values from response for runtime context
-                if (
-                    tr.status == "passed"
-                    and test.extract
-                    and isinstance(tr.response_body, dict)
-                ):
+                # Extract values from response regardless of assertion outcome —
+                # the jsonpath match itself is the real guard.
+                if tr.status != "passed":
+                    logger.warning(
+                        "Setup test '%s' assertions failed — attempting extract anyway",
+                        test.name,
+                    )
+                if test.extract and isinstance(tr.response_body, dict):
                     for var_name, jsonpath_expr in test.extract.items():
                         try:
                             matches = jp_parse(jsonpath_expr).find(
@@ -223,6 +225,8 @@ async def execute_run(
                 else:
                     summary["errors"] += 1
 
+            logger.info("Runtime context keys after setup: %s", list(runtime_context.keys()))
+
             # ── Pass 2: Execute remaining tests with resolved context ──
             for test in exec_tests:
                 tr = await _execute_single_test(
@@ -238,14 +242,14 @@ async def execute_run(
 
     except Exception as e:
         logger.exception("Unexpected error during run %s: %s", run_id, e)
-        run.status = "completed"
-        run.completed_at = datetime.now(timezone.utc)
-        run.summary = {**summary, "errors": summary["errors"] + 1}
+        run.status = "error"
+        run.completed_at = datetime.now(UTC)
+        run.summary = summary
         await db.commit()
         return
 
     # Transition to analyzing — service layer handles failure analysis
     run.status = "analyzing"
-    run.completed_at = datetime.now(timezone.utc)
+    run.completed_at = datetime.now(UTC)
     run.summary = summary
     await db.commit()
