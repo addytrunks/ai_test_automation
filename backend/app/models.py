@@ -202,3 +202,91 @@ class Test(Base):
         onupdate=func.now(),
         nullable=False,
     )
+
+
+class Run(Base):
+    __tablename__ = "runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True).with_variant(String(36), "sqlite"),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    test_suite_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("test_suites.id", ondelete="CASCADE"), index=True
+    )
+    target_base_url: Mapped[str] = mapped_column(String(1024), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="pending"
+    )  # pending / running / analyzing / completed
+    summary: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB().with_variant(JSON, "sqlite"), nullable=True
+    )  # {total, passed, failed, errors}
+    parent_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True).with_variant(String(36), "sqlite"),
+        ForeignKey("runs.id"),
+        nullable=True,
+    )
+    loop_iteration: Mapped[int] = mapped_column(Integer, default=0)
+
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class TestResult(Base):
+    __tablename__ = "test_results"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True).with_variant(String(36), "sqlite"),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("runs.id", ondelete="CASCADE"), index=True
+    )
+    test_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tests.id", ondelete="CASCADE"), index=True
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # passed / failed / error / skipped
+    response_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    response_headers: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB().with_variant(JSON, "sqlite"), nullable=True
+    )
+    response_body: Mapped[dict[str, Any] | str | None] = mapped_column(
+        JSONB().with_variant(JSON, "sqlite"), nullable=True
+    )
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    assertion_results: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONB().with_variant(JSON, "sqlite"), nullable=True
+    )
+    error_message: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class AIAnalysis(Base):
+    __tablename__ = "ai_analyses"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True).with_variant(String(36), "sqlite"),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    test_result_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("test_results.id", ondelete="CASCADE"), unique=True, index=True
+    )
+    explanation: Mapped[str] = mapped_column(String, nullable=False)
+    likely_cause: Mapped[str] = mapped_column(String, nullable=False)
+    suggested_fix: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
