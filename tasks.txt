@@ -1,0 +1,42 @@
+FIX: ADD GUARDRAILS FOR INSTANCE: if an endpoint's path doesn't contain a {...} parameter, the BOLA checkbox is automatically grayed out or disabled for that specific row.
+
+
+CHECK: temperature of the LLM model for fine tuning
+
+TESTS:
+Group 1: User Management (/users/v1/*)
+
+Endpoints: 
+- GET /users/v1/{username}, 
+- POST /users/v1/login, 
+- POST /users/v1/register, 
+- PUT /users/v1/{username}/password, 
+- PUT /users/v1/{username}/email, 
+- GET /users/v1/_debug
+Scenarios: 
+- Injection (SQL injection on username lookup), 
+- Unauthorized Password Change (token username vs URL username mismatch), 
+- Mass Assignment (pass admin:true in register body), 
+- Excessive Data Exposure (_debug endpoint), 
+- User Enumeration (login returns explicit username/password error messages), 
+- RegexDOS (malformed long email on email update)
+
+Group 2: Books (/books/v1/*)
+
+Endpoints: 
+- GET /books/v1/{book_title}, 
+- POST /books/v1
+Scenarios: BOLA (any valid token retrieves any book's secret, not just the owner's)
+
+Group 3: Rate Limiting (cross-cutting)
+
+Endpoints: 
+- POST /users/v1/login
+Scenario: 
+- Lack of Rate Limiting — combine with enumeration; 
+- unlimited login attempts enable brute force
+
+
+Detecting the auth endpoints => If no endpoint found but security tab is present, then API uses a default auth mechanism or it is not properly documented. => Assume
+
+noticing a lot of discrepancies in the test cases that are being generated. could be because of the LLM being used.
