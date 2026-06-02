@@ -6,7 +6,7 @@
 
 **Architecture:** We add the `coverage_gaps` table. The `agentic` module defines a `StateGraph` with nodes: `execute_run_node`, `analyze_node`, and `generate_node`. A conditional edge checks `current_depth` against `max_depth` to prevent runaway loops. We use `langgraph-checkpoint-postgres` for durable state. The frontend gets a visualization of the run lineage.
 
-**Tech Stack Additions:** `langgraph`, `langgraph-checkpoint-postgres`. React component `react-flow` for lineage visualization.
+**Tech Stack Additions:** `langgraph`, `langgraph-checkpoint-postgres`. React component `@xyflow/react` (formerly `react-flow`) for lineage visualization.
 
 **Verification gate:** **Click Run → loop auto-runs 2-3 iterations → lineage tree shows new tests discovered without user clicks.** You should see tests automatically generated and executed to hit deeper gaps (like BOLA/IDOR issues in VAmPI).
 
@@ -53,7 +53,7 @@ npm install @xyflow/react
 - [ ] **Step 3: Install**
 ```bash
 cd backend
-pip install -e ".[dev]"
+uv pip install -e ".[dev]"
 ```
 
 - [ ] **Step 4: Commit**
@@ -85,6 +85,15 @@ class CoverageGap(Base):
     
     scenario_description: Mapped[str] = mapped_column(String(1024), nullable=False)
     severity: Mapped[str] = mapped_column(String(50), nullable=False) # low/medium/high
+    
+    # run_id links this gap to the specific iteration that surfaced it.
+    # Without this, the lineage tree cannot attribute which gaps came from which run.
+    run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True).with_variant(String(36), "sqlite"),
+        ForeignKey("runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     
     spawned_test_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True).with_variant(String(36), "sqlite"), ForeignKey("tests.id"), nullable=True)
     
@@ -291,36 +300,35 @@ checkpointer_url: str = Field(
 ```
 
 - [ ] **Step 3: Checkpointer integration**
-In `app/agentic/checkpointer.py`, use `settings.checkpointer_url` directly:
+In `app/agentic/checkpointer.py`, use the modern `from_conn_string` context manager. This is the pattern documented by LangGraph and avoids manually managing `psycopg_pool` lifecycle. Note: the checkpointer must be passed to `build_graph()` at compile time — see Task 5 Step 4.
 ```python
 from contextlib import asynccontextmanager
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-from psycopg_pool import AsyncConnectionPool
 from app.config import get_settings
 
 @asynccontextmanager
 async def get_checkpointer():
     settings = get_settings()
-    pool = AsyncConnectionPool(
-        conninfo=settings.checkpointer_url,
-        max_size=5,
-    )
-    async with pool:
-        saver = AsyncPostgresSaver(pool)
-        await saver.setup()
+    async with AsyncPostgresSaver.from_conn_string(settings.checkpointer_url) as saver:
+        await saver.setup()  # Creates checkpoint tables on first use; idempotent after that
         yield saver
 ```
 
-- [ ] **Step 4: Add Guards**
-Create `app/agentic/guards.py` to enforce limits:
+- [ ] **Step 4: Guards (optional — `decide_continue` already covers this)**
+`guards.py` was originally planned to enforce safety limits by raising exceptions. **Do not call this from inside nodes.** Raising inside a node causes the graph to fail rather than route gracefully to `finalize`. The `decide_continue` routing function already handles `max_depth` and token budget checks and routes to `finalize` cleanly.
+
+Create `app/agentic/guards.py` only if you want a standalone utility for pre-flight validation *before* invoking the graph (e.g., rejecting a run request with bad config from the router). If created, it must **not** be called from within graph nodes.
+
 ```python
+# app/agentic/guards.py — PRE-FLIGHT VALIDATION ONLY, NOT for use inside nodes
 from app.agentic.state import AgenticLoopState
 
-def enforce_safety_caps(state: AgenticLoopState):
-    if state["current_depth"] >= min(state["max_depth"], 5):
-        raise ValueError("Max depth exceeded")
-    if state["total_tokens_used"] > 200000:
-        raise ValueError("Token budget exceeded")
+def validate_initial_state(state: AgenticLoopState):
+    """Validate starting state before graph.ainvoke(). Raises ValueError for bad config."""
+    if state["max_depth"] < 1 or state["max_depth"] > 5:
+        raise ValueError(f"max_depth must be 1–5, got {state['max_depth']}")
+    if state["max_tests_per_cycle"] < 1 or state["max_tests_per_cycle"] > 10:
+        raise ValueError(f"max_tests_per_cycle must be 1–10, got {state['max_tests_per_cycle']}")
 ```
 
 - [ ] **Step 5: Commit**
@@ -457,14 +465,22 @@ def finalize_node(state: AgenticLoopState) -> dict:
 - [ ] **Step 4: Build Graph**
 In `app/agentic/graph.py`:
 ```python
-from langgraph.graph import StateGraph, END
+from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from app.agentic.state import AgenticLoopState
 from app.agentic.nodes import (
     execute_run_node, analyze_node, generate_node,
     decide_continue, finalize_node,
 )
 
-def build_graph():
+def build_graph(checkpointer: BaseCheckpointSaver | None = None):
+    """
+    Build and compile the agentic loop graph.
+
+    IMPORTANT: The checkpointer MUST be passed here at compile time.
+    It cannot be injected later at ainvoke() time. If no checkpointer
+    is provided (e.g., in unit tests), the graph runs without persistence.
+    """
     workflow = StateGraph(AgenticLoopState)
 
     workflow.add_node("execute_run", execute_run_node)
@@ -472,7 +488,8 @@ def build_graph():
     workflow.add_node("generate", generate_node)
     workflow.add_node("finalize", finalize_node)
 
-    workflow.set_entry_point("execute_run")
+    # Use add_edge(START, ...) — set_entry_point() is deprecated in LangGraph 1.x
+    workflow.add_edge(START, "execute_run")
     workflow.add_edge("execute_run", "analyze")
 
     workflow.add_conditional_edges(
@@ -487,7 +504,7 @@ def build_graph():
     workflow.add_edge("generate", "execute_run")
     workflow.add_edge("finalize", END)
 
-    return workflow.compile()
+    return workflow.compile(checkpointer=checkpointer)
 ```
 
 - [ ] **Step 5: Commit**
@@ -507,7 +524,57 @@ Create `tests/throwaway_graph.py` as a 2-node graph to internalize the LangGraph
 - Modify: `C:\AI_TEST_AUTOMATION\backend\app\runner\router.py`
 
 - [ ] **Step 1: Start Graph from Router**
-Change the `POST /runs` endpoint to initialize the `AgenticLoopState` and call `graph.ainvoke(state)` inside a background task instead of just running the executor once.
+Change the `POST /runs` endpoint to initialize the `AgenticLoopState` and run the graph in a background task.
+
+Two wiring requirements that the naive version misses:
+
+**A) Checkpointer must be passed at compile time, not invoked around ainvoke:**
+```python
+# router.py
+from app.agentic.checkpointer import get_checkpointer
+from app.agentic.graph import build_graph
+from app.agentic.state import AgenticLoopState
+
+@router.post("/runs")
+async def create_run(payload: RunCreate, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
+    # ... create Run record, etc. ...
+    background_tasks.add_task(run_agentic_loop, suite_id=payload.test_suite_id, run_id=new_run.id)
+    return new_run
+
+async def run_agentic_loop(suite_id: uuid.UUID, run_id: uuid.UUID):
+    async with get_checkpointer() as checkpointer:
+        graph = build_graph(checkpointer=checkpointer)  # compile with checkpointer
+        
+        initial_state: AgenticLoopState = {
+            "test_suite_id": str(suite_id),
+            "target_base_url": "http://localhost:5001",
+            "current_depth": 0,
+            "max_depth": 3,
+            "max_tests_per_cycle": 10,
+            "last_run_id": None,
+            "last_gaps": [],
+            "new_test_ids": [],
+            "total_tokens_used": 0,
+            "final_status": None,
+        }
+        
+        # thread_id is REQUIRED for the checkpointer to key state correctly.
+        # Without it, LangGraph raises a runtime error when checkpointing is enabled.
+        config = {"configurable": {"thread_id": str(run_id)}}
+        
+        await graph.ainvoke(initial_state, config=config)
+```
+
+**B) DB session inside nodes:** Node functions run in a background task and cannot share the request-scoped `AsyncSession`. Each node that touches the DB must create its own session:
+```python
+# Inside a node:
+from app.database import AsyncSessionLocal  # your sessionmaker
+
+async def analyze_node(state: AgenticLoopState) -> dict:
+    async with AsyncSessionLocal() as db:
+        gaps = await analyze_coverage_gaps(db, uuid.UUID(state["test_suite_id"]), uuid.UUID(state["last_run_id"]))
+    # ...
+```
 
 - [ ] **Step 2: Commit**
 ```bash
@@ -550,13 +617,17 @@ git commit -m "feat(frontend): add run lineage visualization and coverage gaps"
 
 ## Verification Checklist (end of Week 5)
 
-- [ ] Coverage gaps are successfully identified by LLM and persisted.
+- [ ] Coverage gaps are successfully identified by LLM and persisted (with `run_id` FK populated).
 - [ ] LangGraph correctly orchestrates the execute -> analyze -> generate flow.
 - [ ] Loop respects hard limits (max_depth <= 5).
 - [ ] UI visualizes the multiple iterations visually via React Flow.
 - [ ] New tests created by the loop correctly flag `auto_generated=true` and link to their `parent_coverage_gap_id`.
 - [ ] `pytest -v` — all green
 - [ ] `npm run build` succeeds in `frontend/`
+
+**Known technical debt (acceptable for POC, document in Week 6 ADR):**
+- `decide_continue` and `finalize_node` contain duplicated logic. Both must be kept in sync manually. In production, `finalize_node` would read the routing key returned by `decide_continue` from state rather than re-evaluating the same conditions.
+- Hash-based deduplication is string-exact, not semantic. Two LLM-generated descriptions for the same test scenario with different wording produce different hashes and both get stored. Acceptable for Week 5; note it explicitly in the Week 6 ADR.
 
 When all 7 boxes are ticked, you are done with Week 5.
 
