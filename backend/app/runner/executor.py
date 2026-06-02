@@ -179,7 +179,7 @@ async def execute_run(
             # ── Pass 1: Setup tests (sequential, populate runtime_context) ──
             for test in setup_tests:
                 # Dedup: skip if all context variables (extract + static_context) are already populated
-                provided_keys = set()
+                provided_keys: set[str] = set()
                 if test.extract:
                     provided_keys.update(test.extract.keys())
                 if test.static_context:
