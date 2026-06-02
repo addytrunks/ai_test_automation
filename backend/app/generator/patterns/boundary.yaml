@@ -27,4 +27,3 @@ examples:
       expected_status: 422
       assertions:
         - {type: "status_eq", expected: 422}
-        - {type: "body_contains", expected: "name"}

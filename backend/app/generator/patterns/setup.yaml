@@ -1,44 +1,65 @@
-description: "Generate setup tests that acquire authentication tokens required by other tests in the suite. Setup tests MUST be generated whenever the target endpoint requires a Bearer token. They execute before all other tests and populate the runtime context with live tokens via JSONPath extraction. The 'extract' field maps template variable names to JSONPath expressions that extract values from the response body. If the response does not contain the user's ID, define it using the 'static_context' field. Setup tests for User A and User B must always be generated as a pair when BOLA tests are present."
+description: >
+  Generate setup tests that create test users and acquire authentication tokens.
+  Setup tests MUST follow a register-then-login sequence: first register the user
+  (if the API has a registration endpoint), then log in to obtain a token. Each
+  setup test MUST include the correct 'method' and 'path' fields pointing to the
+  actual registration or login endpoint (NOT the target endpoint being tested).
+  The 'extract' field maps template variable names to JSONPath expressions that
+  pull values from the response body. The 'static_context' field defines static
+  values (like usernames or emails used during registration) that other tests need.
+  Setup tests execute before all other tests and populate the runtime context.
+
 examples:
-  - input: "Endpoint path: /api/auth/token, method: POST, params: none, body: {email: string, password: string}, produces: token"
+  - input: "Register endpoint: POST /users/v1/register, body: {username, password, email}. Login endpoint: POST /users/v1/login, body: {username, password}, produces: auth_token"
+    output:
+      name: "Register User A"
+      description: "Creates User A account via the registration endpoint"
+      scenario_type: "setup"
+      method: "POST"
+      path: "/users/v1/register"
+      body: {"username": "test_user_a", "password": "Password123!", "email": "usera@test.com"}
+      expected_status: 200
+      static_context: {"USER_A_ID": "test_user_a"}
+      assertions:
+        - {type: "status_eq", expected: 200}
+
+  - input: "Login endpoint: POST /users/v1/login, body: {username, password}, produces: auth_token"
     output:
       name: "Acquire User A token"
-      description: "Logs in as User A and extracts the auth token into runtime context for use in subsequent authenticated tests"
+      description: "Logs in as User A and extracts the auth token into runtime context"
       scenario_type: "setup"
       method: "POST"
-      path: "/api/auth/token"
-      body: {"email": "userA@example.com", "password": "Password123!"}
+      path: "/users/v1/login"
+      body: {"username": "test_user_a", "password": "Password123!"}
       expected_status: 200
-      extract: {"USER_A_TOKEN": "$.token"}
-      static_context: {"USER_A_ID": "userA@example.com"}
+      extract: {"USER_A_TOKEN": "$.auth_token"}
       assertions:
         - {type: "status_eq", expected: 200}
-        - {type: "json_path", target: "$.token", op: "exists"}
-  - input: "Endpoint path: /api/auth/token, method: POST, params: none, body: {email: string, password: string}, produces: token"
+        - {type: "json_path", target: "$.auth_token", op: "exists"}
+
+  - input: "Register endpoint: POST /users/v1/register, body: {username, password, email}. Login endpoint: POST /users/v1/login, body: {username, password}, produces: auth_token"
+    output:
+      name: "Register User B"
+      description: "Creates User B account — required for BOLA tests where User A accesses User B resources"
+      scenario_type: "setup"
+      method: "POST"
+      path: "/users/v1/register"
+      body: {"username": "test_user_b", "password": "Password123!", "email": "userb@test.com"}
+      expected_status: 200
+      static_context: {"USER_B_ID": "test_user_b"}
+      assertions:
+        - {type: "status_eq", expected: 200}
+
+  - input: "Login endpoint: POST /users/v1/login, body: {username, password}, produces: auth_token"
     output:
       name: "Acquire User B token"
-      description: "Logs in as User B and extracts the auth token into runtime context — required for BOLA tests where User A attempts to access User B's resources"
+      description: "Logs in as User B and extracts the auth token into runtime context for BOLA tests"
       scenario_type: "setup"
       method: "POST"
-      path: "/api/auth/token"
-      body: {"email": "userB@example.com", "password": "Password123!"}
+      path: "/users/v1/login"
+      body: {"username": "test_user_b", "password": "Password123!"}
       expected_status: 200
-      extract: {"USER_B_TOKEN": "$.token"}
-      static_context: {"USER_B_ID": "userB@example.com"}
+      extract: {"USER_B_TOKEN": "$.auth_token"}
       assertions:
         - {type: "status_eq", expected: 200}
-        - {type: "json_path", target: "$.token", op: "exists"}
-  - input: "Endpoint path: /api/auth/token, method: POST, params: none, body: {email: string, password: string}, produces: token, admin account present"
-    output:
-      name: "Acquire Admin token"
-      description: "Logs in as an admin user and extracts the token into runtime context for privilege escalation and admin-only endpoint tests"
-      scenario_type: "setup"
-      method: "POST"
-      path: "/api/auth/token"
-      body: {"email": "admin@example.com", "password": "AdminPassword123!"}
-      expected_status: 200
-      extract: {"ADMIN_TOKEN": "$.token"}
-      static_context: {"ADMIN_ID": "admin@example.com"}
-      assertions:
-        - {type: "status_eq", expected: 200}
-        - {type: "json_path", target: "$.token", op: "exists"}
+        - {type: "json_path", target: "$.auth_token", op: "exists"}

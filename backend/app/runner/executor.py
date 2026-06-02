@@ -98,6 +98,10 @@ async def _execute_single_test(
             headers=headers,
             json=body if body else None,
         )
+        try:
+            print("Response:", response.json())
+        except Exception:
+            print("Response (non-JSON):", response.status_code, response.text)
         duration_ms = int((time.time() - start_time) * 1000)
         response_status = response.status_code
         response_headers_dict = dict(response.headers)
@@ -165,20 +169,27 @@ async def execute_run(
 
     # Split tests into setup and execution phases
     setup_tests = [t for t in tests if t.scenario_type == "setup"]
+    # Sort setup tests: register tests (no extract) before login tests (with extract)
+    setup_tests.sort(key=lambda t: 1 if t.extract else 0)
+    
     exec_tests = [t for t in tests if t.scenario_type != "setup"]
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             # ── Pass 1: Setup tests (sequential, populate runtime_context) ──
             for test in setup_tests:
-                # Dedup: skip if all extract keys are already populated
-                if test.extract and all(
-                    k in runtime_context for k in test.extract
-                ):
+                # Dedup: skip if all context variables (extract + static_context) are already populated
+                provided_keys = set()
+                if test.extract:
+                    provided_keys.update(test.extract.keys())
+                if test.static_context:
+                    provided_keys.update(test.static_context.keys())
+
+                if provided_keys and all(k in runtime_context for k in provided_keys):
                     logger.info(
                         "Skipping duplicate setup test '%s' — context already has %s",
                         test.name,
-                        list(test.extract.keys()),
+                        list(provided_keys),
                     )
                     summary["skipped"] += 1
                     continue

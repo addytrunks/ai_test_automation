@@ -92,7 +92,7 @@ SYSTEM_PROMPT = (
     "You are an expert API security and QA engineer. Generate test cases as a JSON object "
     "with a 'tests' array. Each test must include: name (string), description (string), "
     "scenario_type (string), expected_status (int), assertions (array of objects with 'type' "
-    "and 'expected' fields). Optional fields: path_params, query_params, headers, body, extract.\n\n"
+    "and 'expected' fields). Optional fields: method, path, path_params, query_params, headers, body, extract.\n\n"
 
     "Valid scenario_type values: positive, negative, boundary, bola, auth_bypass, injection, "
     "mass_assignment, setup.\n\n"
@@ -103,23 +103,26 @@ SYSTEM_PROMPT = (
     "TEMPLATE VARIABLE CONTRACT — THIS IS MANDATORY:\n"
     "Never use hardcoded placeholder strings for tokens, passwords, or dynamic resource IDs. "
     "You MUST use double-brace template variables for any value that will be resolved at runtime. "
-    "The only valid token variables are: {{USER_A_TOKEN}}, {{USER_B_TOKEN}}, {{ADMIN_TOKEN}}. "
+    "The only valid token variables are: {{USER_A_TOKEN}}, {{USER_B_TOKEN}}. "
     "The only valid ID variables are: {{USER_A_ID}}, {{USER_B_ID}}, {{TARGET_RESOURCE_ID}}. "
     "Examples of FORBIDDEN values: 'valid.token.for.user.a', 'Bearer <token>', 'user-b-uuid-1234', "
     "'current-user-uuid', 'some_token'. "
     "If you use any of these forbidden patterns instead of the template variables above, "
     "the output will be rejected.\n\n"
 
-    "SETUP TESTS:\n"
-    "When an endpoint requires authentication (i.e. it has a security scheme), you MUST first "
-    "generate setup tests that acquire the required tokens. A setup test has "
-    "scenario_type='setup' and an 'extract' field: a dict mapping template variable names to "
-    "JSONPath expressions that extract them from the response body. "
-    "Example: extract: {\"USER_A_TOKEN\": \"$.auth_token\"}. "
-    "If the login response does not return the user's ID, you MUST define it using the 'static_context' "
-    "field, mapping the template variable (e.g. USER_A_ID) to the static identifier used in the login request. "
-    "Example: static_context: {\"USER_A_ID\": \"user1\"}. "
-    "Setup tests must appear BEFORE any tests that use the tokens they produce.\n\n"
+    "SETUP TESTS — CRITICAL RULES:\n"
+    "1. Setup tests MUST include 'method' and 'path' fields pointing to the actual "
+    "registration or login endpoint (NOT the target endpoint being tested).\n"
+    "2. If the API has a registration endpoint, you MUST generate a Register setup test "
+    "BEFORE the Login setup test. Users may not exist yet — never assume they do.\n"
+    "3. The Login setup test must include an 'extract' field mapping template variable names "
+    "to JSONPath expressions that extract tokens from the response body. "
+    "Example: extract: {\"USER_A_TOKEN\": \"$.auth_token\"}.\n"
+    "4. The Register setup test should include a 'static_context' field mapping identifiers "
+    "used during registration. Example: static_context: {\"USER_A_ID\": \"test_user_a\"}.\n"
+    "5. Use the Authentication Endpoint details provided in the prompt to determine the "
+    "correct method, path, request body schema, and response token field name.\n"
+    "6. Setup tests must appear BEFORE any tests that use the tokens they produce.\n\n"
 
     "Return ONLY the JSON object, no markdown, no explanation, no preamble."
 )
@@ -131,6 +134,8 @@ async def _generate_for_endpoint(
     endpoint: Endpoint,
     scenarios: list[str],
     auth_endpoint: Endpoint | None = None,
+    register_endpoint: Endpoint | None = None,
+    include_setup: bool = False,
 ) -> int:
     """
     Generate tests for a single endpoint and save them.
@@ -168,7 +173,24 @@ async def _generate_for_endpoint(
             auth_endpoint.method, auth_endpoint.path,
         )
 
-    prompt = build_generation_prompt(ep_dict, scenarios, auth_ep_dict)
+    reg_ep_dict = None
+    if register_endpoint:
+        reg_ep_dict = {
+            "method": register_endpoint.method,
+            "path": register_endpoint.path,
+            "summary": register_endpoint.summary,
+            "parameters": register_endpoint.parameters,
+            "request_body": register_endpoint.request_body,
+            "responses": register_endpoint.responses,
+        }
+        logger.info(
+            "[STEP 1/5] Register endpoint detected: %s %s — injecting into prompt",
+            register_endpoint.method, register_endpoint.path,
+        )
+
+    prompt = build_generation_prompt(
+        ep_dict, scenarios, auth_ep_dict, reg_ep_dict, include_setup
+    )
 
     logger.info(
         "[STEP 2/5] Calling LLM (prompt length: %d chars)...", len(prompt),
@@ -191,9 +213,9 @@ async def _generate_for_endpoint(
     # Extract path template variables (e.g. "/users/{id}" -> {"id"})
     path_vars = set(re.findall(r"\{(\w+)\}", endpoint.path))
 
-    # Only allow scenario types that were actually requested (plus "setup" if an auth endpoint is present)
+    # Only allow scenario types that were actually requested
     allowed_scenarios = set(scenarios)
-    if auth_endpoint:
+    if include_setup:
         allowed_scenarios.add("setup")
 
     # Validate tests against endpoint
@@ -248,14 +270,23 @@ async def _generate_for_endpoint(
 
     # Persist valid tests (truncate name/description to fit DB column limits)
     for t_data in valid_tests:
+        # Setup tests use their own method/path (e.g. POST /login),
+        # not the target endpoint's method/path
+        if t_data.scenario_type == "setup":
+            test_method = t_data.method or endpoint.method
+            test_path = t_data.path or endpoint.path
+        else:
+            test_method = endpoint.method
+            test_path = endpoint.path
+
         test_obj = Test(
             test_suite_id=suite_id,
             endpoint_id=endpoint.id,
             name=(t_data.name or "")[:255],
             description=(t_data.description or "")[:1024],
             scenario_type=t_data.scenario_type,
-            method=endpoint.method,
-            path=endpoint.path,
+            method=test_method,
+            path=test_path,
             path_params=t_data.path_params,
             query_params=t_data.query_params,
             headers=t_data.headers,
@@ -276,6 +307,7 @@ async def generate_test_suite_task(
     endpoint_ids: list[uuid.UUID],
     scenarios: list[str],
     auth_endpoint_id: uuid.UUID | None = None,
+    register_endpoint_id: uuid.UUID | None = None,
 ) -> None:
     """
     Background task entry point for test generation.
@@ -302,14 +334,22 @@ async def generate_test_suite_task(
         if auth_endpoint_id:
             auth_endpoint = await db.scalar(select(Endpoint).where(Endpoint.id == auth_endpoint_id))
 
+        register_endpoint = None
+        if register_endpoint_id:
+            register_endpoint = await db.scalar(select(Endpoint).where(Endpoint.id == register_endpoint_id))
+
         logger.info(
             "━━━ Suite %s: starting generation for %d endpoints (scenarios: %s) ━━━",
             suite_id, len(endpoint_ids), ", ".join(scenarios),
         )
         if auth_endpoint:
             logger.info("Auth endpoint resolved: %s %s", auth_endpoint.method, auth_endpoint.path)
+        if register_endpoint:
+            logger.info("Register endpoint resolved: %s %s", register_endpoint.method, register_endpoint.path)
 
         total_tests = 0
+        setup_generated = False
+        
         for idx, ep_id in enumerate(endpoint_ids, 1):
             endpoint = await db.scalar(select(Endpoint).where(Endpoint.id == ep_id))
             if not endpoint:
@@ -328,7 +368,16 @@ async def generate_test_suite_task(
                         endpoint.method, endpoint.path,
                     )
                     continue
-                count = await _generate_for_endpoint(db, suite_id, endpoint, ep_scenarios, auth_endpoint)
+                
+                # Only inject setup tests if this endpoint requires auth and we haven't generated them yet
+                include_setup = False
+                if not setup_generated and _ep_has_auth(endpoint):
+                    include_setup = True
+                    setup_generated = True
+
+                count = await _generate_for_endpoint(
+                    db, suite_id, endpoint, ep_scenarios, auth_endpoint, register_endpoint, include_setup
+                )
                 await db.commit()  # persist this endpoint's tests before moving on
                 total_tests += count
                 logger.info(
@@ -381,24 +430,32 @@ async def create_test_suite(
                 break
 
     auth_endpoint_id = None
+    register_endpoint_id = None
     if requires_auth:
         # Heuristic: find POST endpoints with login/auth/token in path
-        candidates = []
+        login_candidates = []
+        register_candidates = []
         for ep in all_endpoints:
             if ep.method.lower() == "post":
                 path_lower = ep.path.lower()
                 if any(k in path_lower for k in ["login", "auth", "token", "signin", "sessions"]):
-                    candidates.append(ep)
+                    login_candidates.append(ep)
+                if any(k in path_lower for k in ["register", "signup", "sign-up", "create-user"]):
+                    register_candidates.append(ep)
         
-        if len(candidates) == 1:
-            auth_endpoint_id = candidates[0].id
+        if len(login_candidates) == 1:
+            auth_endpoint_id = login_candidates[0].id
         else:
             raise HTTPException(
                 status_code=400,
-                detail=f"Could not auto-detect a unique authentication endpoint (found {len(candidates)} candidates). "
+                detail=f"Could not auto-detect a unique authentication endpoint (found {len(login_candidates)} candidates). "
                 "Generation of authenticated test suites requires an auth endpoint config. "
                 "(Manual UI configuration pending in Week 4)."
             )
+
+        # Register endpoint is optional — if found, the LLM will generate register setup tests
+        if len(register_candidates) == 1:
+            register_endpoint_id = register_candidates[0].id
 
     suite = TestSuite(
         project_id=project_id,
@@ -412,7 +469,8 @@ async def create_test_suite(
 
     # Enqueue background generation
     background_tasks.add_task(
-        generate_test_suite_task, suite.id, payload.endpoint_ids, payload.scenarios, auth_endpoint_id
+        generate_test_suite_task, suite.id, payload.endpoint_ids, payload.scenarios,
+        auth_endpoint_id, register_endpoint_id,
     )
 
     return suite

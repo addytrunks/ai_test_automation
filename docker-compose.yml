@@ -24,6 +24,27 @@ services:
     ports:
       - "5001:5000"
     restart: unless-stopped
+    healthcheck:
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - |
+          import urllib.request
+          try:
+              with urllib.request.urlopen('http://localhost:5000/users/v1') as r:
+                  if r.status == 200:
+                      exit(0)
+          except Exception:
+              try:
+                  urllib.request.urlopen('http://localhost:5000/createdb')
+                  exit(0)
+              except Exception:
+                  exit(1)
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
 
 volumes:
   postgres_data:

@@ -82,7 +82,7 @@ async def run_and_analyze_task(
             )
             for idx, tr in enumerate(failed_list, 1):
                 logger.info(
-                    "Analyzing failure %d/%d (result %s)...",
+                    "Running AI analysis for failure %d/%d (result %s)...",
                     idx, len(failed_list), tr.id,
                 )
                 await analyze_failure(db, tr.id)

@@ -44,6 +44,10 @@ class GeneratedTestSchema(BaseModel):
         "mass_assignment", "setup",
     ]
 
+    # Setup tests may target a different endpoint (e.g. POST /login)
+    method: str | None = Field(default=None, description="HTTP method (required for setup tests)")
+    path: str | None = Field(default=None, description="Endpoint path (required for setup tests)")
+
     path_params: dict[str, Any] | None = Field(
         default=None, description="Path parameters to inject"
     )
