@@ -148,7 +148,7 @@ export interface TestResult {
   id: string
   run_id: string
   test_id: string
-  status: "passed" | "failed" | "error"
+  status: "passed" | "failed" | "error" | "skipped"
   response_status: number | null
   response_headers: Record<string, unknown> | null
   response_body: unknown

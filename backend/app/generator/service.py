@@ -79,9 +79,6 @@ def _filter_scenarios_for_endpoint(ep: Endpoint, scenarios: list[str]) -> list[s
         if s == "boundary" and not _ep_has_inputs(ep):
             logger.info("  ↳ Stripped '%s' — endpoint has no inputs for boundary testing", s)
             continue
-        if s == "positive" and not _ep_has_inputs(ep):
-            logger.info("  ↳ Stripped '%s' — endpoint has no documented inputs", s)
-            continue
         filtered.append(s)
     return filtered
 

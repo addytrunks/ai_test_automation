@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import uuid
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analyzer.prompts import FAILURE_ANALYSIS_SYSTEM_PROMPT, build_failure_prompt
@@ -48,6 +49,12 @@ async def analyze_failure(db: AsyncSession, test_result_id: uuid.UUID) -> None:
         assertion_results=tr.assertion_results,
     )
 
+    # Check if analysis already exists to prevent duplicate key errors
+    existing = await db.scalar(select(AIAnalysis).where(AIAnalysis.test_result_id == test_result_id))
+    if existing:
+        logger.info("Analysis already exists for test result %s, skipping", test_result_id)
+        return
+
     try:
         result = await generate_structured(
             prompt=prompt,
@@ -67,3 +74,4 @@ async def analyze_failure(db: AsyncSession, test_result_id: uuid.UUID) -> None:
         logger.info("Analysis saved for test result %s", test_result_id)
     except Exception as e:
         logger.warning("Failed to analyze test result %s: %s", test_result_id, e)
+        await db.rollback()

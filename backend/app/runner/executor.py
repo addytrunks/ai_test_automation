@@ -96,12 +96,9 @@ async def _execute_single_test(
             url=url,
             params=query_params,
             headers=headers,
-            json=body if body else None,
+            json=body if body is not None else None,
         )
-        try:
-            print("Response:", response.json())
-        except Exception:
-            print("Response (non-JSON):", response.status_code, response.text)
+        logger.debug("Test '%s' response status: %s", test.name, response.status_code)
         duration_ms = int((time.time() - start_time) * 1000)
         response_status = response.status_code
         response_headers_dict = dict(response.headers)
@@ -192,6 +189,13 @@ async def execute_run(
                         list(provided_keys),
                     )
                     summary["skipped"] += 1
+                    db.add(TestResult(
+                        run_id=run.id,
+                        test_id=test.id,
+                        status="skipped",
+                        duration_ms=0,
+                        error_message="Skipped duplicate setup test",
+                    ))
                     continue
 
                 tr = await _execute_single_test(

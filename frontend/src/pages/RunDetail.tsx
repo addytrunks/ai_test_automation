@@ -17,12 +17,14 @@ const STATUS_ICON: Record<string, string> = {
   passed: "✅",
   failed: "❌",
   error: "⚠️",
+  skipped: "⏭️",
 }
 
 const STATUS_BG: Record<string, string> = {
   passed: "border-l-emerald-500",
   failed: "border-l-red-500",
   error: "border-l-amber-500",
+  skipped: "border-l-slate-400",
 }
 
 const RUN_STATUS_STYLES: Record<string, string> = {
@@ -79,11 +81,10 @@ function ResultCard({
             )}
             {result.response_status && (
               <span
-                className={`rounded px-2 py-0.5 text-xs font-bold ${
-                  result.response_status < 400
+                className={`rounded px-2 py-0.5 text-xs font-bold ${result.response_status < 400
                     ? "bg-emerald-100 text-emerald-700"
                     : "bg-red-100 text-red-700"
-                }`}
+                  }`}
               >
                 {result.response_status}
               </span>
@@ -247,11 +248,11 @@ export default function RunDetail() {
                   {(run.status === "running" ||
                     run.status === "pending" ||
                     run.status === "analyzing") && (
-                    <span className="relative flex h-3 w-3">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
-                      <span className="relative inline-flex h-3 w-3 rounded-full bg-blue-500" />
-                    </span>
-                  )}
+                      <span className="relative flex h-3 w-3">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+                        <span className="relative inline-flex h-3 w-3 rounded-full bg-blue-500" />
+                      </span>
+                    )}
                   {RUN_STATUS_MSG[run.status]}
                 </CardTitle>
               </CardHeader>
@@ -269,7 +270,7 @@ export default function RunDetail() {
 
           {/* Summary bar */}
           {summary && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-8">
               <div className="rounded-xl bg-white border p-4 text-center">
                 <p className="text-2xl font-bold text-slate-800">
                   {summary.total}
@@ -293,6 +294,12 @@ export default function RunDetail() {
                   {summary.errors}
                 </p>
                 <p className="text-xs text-slate-500 mt-1">Errors</p>
+              </div>
+              <div className="rounded-xl bg-white border p-4 text-center">
+                <p className="text-2xl font-bold text-slate-600">
+                  {summary.skipped || 0}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">Skipped</p>
               </div>
             </div>
           )}

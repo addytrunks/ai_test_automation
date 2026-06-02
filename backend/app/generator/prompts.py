@@ -44,18 +44,6 @@ def load_patterns(scenarios: list[str]) -> str:
     return patterns_text
 
 
-def _endpoint_requires_auth(endpoint_dict: dict[str, Any]) -> bool:
-    """Return True if the endpoint has a non-empty security requirement."""
-    security = endpoint_dict.get("security")
-    if security:
-        return True
-    # Also check if any parameter is named 'Authorization' (fallback heuristic)
-    for param in endpoint_dict.get("parameters") or []:
-        if isinstance(param, dict) and param.get("name", "").lower() == "authorization":
-            return True
-    return False
-
-
 def build_generation_prompt(
     endpoint_dict: dict[str, Any],
     scenarios: list[str],
