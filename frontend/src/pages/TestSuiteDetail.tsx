@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query"
-import { useParams } from "react-router-dom"
+import { useParams, useNavigate, Link } from "react-router-dom"
+import { useState } from "react"
 import { JsonView, darkStyles } from "react-json-view-lite"
 import "react-json-view-lite/dist/index.css"
 
 import { getTestSuite, getTests } from "@/api/generator"
+import { triggerRun, listRuns } from "@/api/runner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuthStore } from "@/hooks/useAuthStore"
@@ -111,8 +113,13 @@ function CollapsibleJson({
 
 export default function TestSuiteDetail() {
   const { suiteId } = useParams<{ suiteId: string }>()
+  const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
+
+  const [targetUrl, setTargetUrl] = useState("http://localhost:5001")
+  const [runLoading, setRunLoading] = useState(false)
+  const [runError, setRunError] = useState<string | null>(null)
 
   // Poll suite status every 2s while pending/generating
   const { data: suite, isLoading: suiteLoading } = useQuery({
@@ -133,8 +140,30 @@ export default function TestSuiteDetail() {
     enabled: suite?.status === "ready",
   })
 
+  // Fetch recent runs for this suite
+  const { data: runs } = useQuery({
+    queryKey: ["runs", suiteId],
+    queryFn: () => listRuns(suiteId!),
+    enabled: suite?.status === "ready",
+  })
+
   const isGenerating =
     suite?.status === "pending" || suite?.status === "generating"
+
+  async function handleRunTests() {
+    if (!suiteId || !targetUrl.trim()) return
+    setRunLoading(true)
+    setRunError(null)
+    try {
+      const run = await triggerRun(suiteId, { target_base_url: targetUrl.trim() })
+      navigate(`/runs/${run.id}`)
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Failed to trigger run"
+      setRunError(msg)
+    } finally {
+      setRunLoading(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 p-8">
@@ -212,6 +241,68 @@ export default function TestSuiteDetail() {
             <p className="text-sm text-slate-500">Loading tests…</p>
           ) : tests && tests.length > 0 ? (
             <>
+              {/* Run Tests panel */}
+              <Card className="mb-6">
+                <CardContent className="pt-6">
+                  <div className="flex items-end gap-3">
+                    <div className="flex-1">
+                      <label
+                        htmlFor="target-url"
+                        className="text-xs font-medium text-slate-500 mb-1 block"
+                      >
+                        Target Base URL
+                      </label>
+                      <input
+                        id="target-url"
+                        type="url"
+                        value={targetUrl}
+                        onChange={(e) => setTargetUrl(e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="http://localhost:5001"
+                      />
+                    </div>
+                    <Button
+                      onClick={handleRunTests}
+                      disabled={runLoading || !targetUrl.trim()}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      {runLoading ? "Starting…" : "▶ Run Tests"}
+                    </Button>
+                  </div>
+                  {runError && (
+                    <p className="text-xs text-red-600 mt-2">{runError}</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Recent runs */}
+              {runs && runs.length > 0 && (
+                <div className="mb-6">
+                  <h2 className="text-sm font-medium text-slate-600 mb-2">Recent Runs</h2>
+                  <div className="flex flex-wrap gap-2">
+                    {runs.slice(0, 5).map((r) => (
+                      <Link
+                        key={r.id}
+                        to={`/runs/${r.id}`}
+                        className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium border transition-colors hover:shadow-sm ${
+                          r.status === "completed"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : r.status === "error"
+                              ? "bg-red-50 text-red-700 border-red-200"
+                              : "bg-blue-50 text-blue-700 border-blue-200 animate-pulse"
+                        }`}
+                      >
+                        {r.status === "completed"
+                          ? `✅ ${r.summary?.passed ?? 0}/${r.summary?.total ?? 0} passed`
+                          : r.status === "error"
+                            ? "❌ Error"
+                            : `⏳ ${r.status}`}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <p className="text-sm text-slate-500 mb-6">
                 {tests.length} test{tests.length !== 1 ? "s" : ""} generated
               </p>

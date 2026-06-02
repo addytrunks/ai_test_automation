@@ -108,3 +108,61 @@ export interface TestSuiteCreatePayload {
   endpoint_ids: string[]
   scenarios?: string[]
 }
+
+// ---------------------------------------------------------------------------
+// Runner types
+// ---------------------------------------------------------------------------
+
+export interface RunSummary {
+  total: number
+  passed: number
+  failed: number
+  errors: number
+  skipped?: number
+}
+
+export interface Run {
+  id: string
+  test_suite_id: string
+  target_base_url: string
+  status: "pending" | "running" | "analyzing" | "completed" | "error"
+  summary: RunSummary | null
+  parent_run_id: string | null
+  loop_iteration: number
+  started_at: string | null
+  completed_at: string | null
+}
+
+export interface RunCreatePayload {
+  target_base_url: string
+}
+
+export interface AssertionResult {
+  assertion: TestAssertion
+  passed: boolean
+  actual?: unknown
+  error?: string | null
+}
+
+export interface TestResult {
+  id: string
+  run_id: string
+  test_id: string
+  status: "passed" | "failed" | "error"
+  response_status: number | null
+  response_headers: Record<string, unknown> | null
+  response_body: unknown
+  duration_ms: number | null
+  assertion_results: AssertionResult[] | null
+  error_message: string | null
+  created_at: string
+}
+
+export interface AIAnalysis {
+  id: string
+  test_result_id: string
+  explanation: string
+  likely_cause: string
+  suggested_fix: string
+  created_at: string
+}

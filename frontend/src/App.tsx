@@ -7,6 +7,7 @@ import EndpointExplorer from "@/pages/EndpointExplorer"
 import Login from "@/pages/Login"
 import ProjectDetail from "@/pages/ProjectDetail"
 import Register from "@/pages/Register"
+import RunDetail from "@/pages/RunDetail"
 import TestSuiteDetail from "@/pages/TestSuiteDetail"
 
 function App() {
@@ -44,6 +45,14 @@ function App() {
         element={
           <ProtectedRoute>
             <TestSuiteDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/runs/:runId"
+        element={
+          <ProtectedRoute>
+            <RunDetail />
           </ProtectedRoute>
         }
       />
