@@ -60,3 +60,45 @@ async def generate_structured(
     except Exception as e:
         logger.exception("LLM generation failed for model=%s", settings.llm_model)
         raise RuntimeError(f"LLM generation failed: {e}") from e
+
+
+async def generate_structured_with_usage(
+    prompt: str,
+    response_model: type[T],
+    system_prompt: str = "You are a helpful assistant.",
+    temperature: float = 0.1,
+) -> tuple[T, int]:
+    """
+    Like generate_structured, but also returns the total token count.
+
+    Returns:
+        A tuple of (parsed_model, total_tokens_used).
+    """
+    settings = get_settings()
+
+    if settings.llm_model.startswith("openai/"):
+        litellm.api_key = settings.openai_api_key
+    elif settings.llm_model.startswith("openrouter/"):
+        litellm.api_key = settings.openrouter_api_key
+    elif settings.llm_model.startswith("gemini/"):
+        litellm.api_key = settings.gemini_api_key
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": prompt},
+    ]
+
+    try:
+        response = await litellm.acompletion(
+            model=settings.llm_model,
+            messages=messages,
+            response_format=response_model,
+            temperature=temperature,
+        )
+        content = response.choices[0].message.content
+        parsed = response_model.model_validate_json(content)
+        total_tokens = getattr(response.usage, "total_tokens", 0) or 0
+        return parsed, total_tokens
+    except Exception as e:
+        logger.exception("LLM generation failed for model=%s", settings.llm_model)
+        raise RuntimeError(f"LLM generation failed: {e}") from e

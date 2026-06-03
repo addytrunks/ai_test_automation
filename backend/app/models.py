@@ -306,6 +306,9 @@ class CoverageGap(Base):
     endpoint_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("endpoints.id", ondelete="CASCADE"), index=True
     )
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("runs.id", ondelete="CASCADE"), index=True
+    )
     scenario_description: Mapped[str] = mapped_column(String(1024), nullable=False)
     severity: Mapped[str] = mapped_column(String(50), nullable=False) # low/medium/high
     spawned_test_id: Mapped[uuid.UUID | None] = mapped_column(

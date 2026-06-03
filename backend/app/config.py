@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     vampi_base_url: str = Field("http://localhost:5001")
     gemini_api_key: str = Field("")
 
+    # LangGraph checkpointer — must use psycopg3 (postgresql://) not asyncpg
+    checkpointer_url: str = Field(
+        "",
+        description="psycopg3-compatible connection string for LangGraph checkpointer. "
+        "Must use postgresql:// scheme, NOT postgresql+asyncpg://. "
+        "Leave empty to disable checkpointing.",
+    )
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def cors_origins(self) -> list[str]:
