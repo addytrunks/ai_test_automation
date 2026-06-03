@@ -290,3 +290,29 @@ class AIAnalysis(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class CoverageGap(Base):
+    __tablename__ = "coverage_gaps"
+    
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True).with_variant(String(36), "sqlite"), 
+        primary_key=True, 
+        default=uuid.uuid4
+    )
+    test_suite_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("test_suites.id", ondelete="CASCADE"), index=True
+    )
+    endpoint_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("endpoints.id", ondelete="CASCADE"), index=True
+    )
+    scenario_description: Mapped[str] = mapped_column(String(1024), nullable=False)
+    severity: Mapped[str] = mapped_column(String(50), nullable=False) # low/medium/high
+    spawned_test_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True).with_variant(String(36), "sqlite"),
+        ForeignKey("tests.id"), 
+        nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
