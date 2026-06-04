@@ -7,18 +7,22 @@ Run → TestSuite → Project → user_id chain.
 
 from __future__ import annotations
 
+import logging
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agentic.checkpointer import get_checkpointer
+from app.agentic.graph import build_graph
+from app.agentic.state import AgenticLoopState
 from app.analyzer.schemas import AIAnalysisRead, RunCreate, RunRead, TestResultRead
 from app.deps import CurrentUser, DbSession
 from app.models import AIAnalysis, Project, Run, Test, TestResult, TestSuite
-from app.runner.service import run_and_analyze_task
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -75,6 +79,52 @@ async def _verify_test_result_ownership(
 
 
 # ---------------------------------------------------------------------------
+# Agentic loop background task
+# ---------------------------------------------------------------------------
+
+
+async def run_agentic_loop(
+    suite_id: uuid.UUID,
+    target_base_url: str,
+) -> None:
+    """Background task: compile the LangGraph and invoke the agentic loop.
+
+    Creates its own checkpointer and DB sessions (since BackgroundTasks
+    run outside the request lifecycle).
+    """
+    try:
+        async with get_checkpointer() as checkpointer:
+            graph = build_graph(checkpointer=checkpointer)
+
+            initial_state: AgenticLoopState = {
+                "test_suite_id": str(suite_id),
+                "target_base_url": target_base_url,
+                "current_depth": 0,
+                "max_depth": 3,
+                "max_tests_per_cycle": 10,
+                "last_run_id": None,
+                "last_gaps": [],
+                "new_test_ids": [],
+                "total_tokens_used": 0,
+                "final_status": None,
+            }
+
+            # thread_id is REQUIRED for the checkpointer to key state correctly.
+            config = {"configurable": {"thread_id": str(suite_id)}}
+
+            result = await graph.ainvoke(initial_state, config=config)
+            logger.info(
+                "Agentic loop completed for suite %s: status=%s, depth=%d, tokens=%d",
+                suite_id,
+                result.get("final_status"),
+                result.get("current_depth", 0),
+                result.get("total_tokens_used", 0),
+            )
+    except Exception:
+        logger.exception("Agentic loop failed for suite %s", suite_id)
+
+
+# ---------------------------------------------------------------------------
 # Run endpoints
 # ---------------------------------------------------------------------------
 
@@ -82,7 +132,7 @@ async def _verify_test_result_ownership(
 @router.post(
     "/test-suites/{suite_id}/runs",
     response_model=RunRead,
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 async def trigger_run(
     suite_id: uuid.UUID,
@@ -90,8 +140,12 @@ async def trigger_run(
     background_tasks: BackgroundTasks,
     user: CurrentUser,
     db: DbSession,
-) -> RunRead:
-    """Trigger a test run for a suite against a target URL."""
+) -> dict[str, str]:
+    """Trigger an agentic test run for a suite against a target URL.
+
+    Returns 202 Accepted immediately. The frontend should poll
+    GET /test-suites/{suite_id}/runs to see loop iterations appear.
+    """
     await _verify_suite_ownership(db, suite_id, user.id)
 
     # Verify suite has tests
@@ -103,21 +157,12 @@ async def trigger_run(
             status_code=400, detail="Test suite has no tests to run"
         )
 
-    run = Run(
-        test_suite_id=suite_id,
-        target_base_url=payload.target_base_url,
-        status="pending",
-    )
-    db.add(run)
-    await db.commit()
-    await db.refresh(run)
-
-    # Enqueue background execution + analysis
+    # Enqueue the agentic loop — Run records are created by execute_run_node
     background_tasks.add_task(
-        run_and_analyze_task, suite_id, run.id, payload.target_base_url
+        run_agentic_loop, suite_id, payload.target_base_url
     )
 
-    return run  # type: ignore[return-value]
+    return {"suite_id": str(suite_id), "status": "accepted"}
 
 
 @router.get("/test-suites/{suite_id}/runs", response_model=list[RunRead])

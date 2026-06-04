@@ -64,10 +64,6 @@ async def analyze_coverage_gaps(
     )
     endpoints_list = ep_result.scalars().all()
 
-    # Build path -> endpoint lookup for O(1) matching
-    endpoints_by_path: dict[str, Endpoint] = {ep.path: ep for ep in endpoints_list}
-    valid_paths = list(endpoints_by_path.keys())
-
     # (b) Fetch all Test records for the suite, grouped by endpoint
     test_result = await db.execute(
         select(Test).where(Test.test_suite_id == suite_id)

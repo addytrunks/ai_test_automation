@@ -29,6 +29,7 @@ dependencies = [
     "jsonpath-ng>=1.8.0",
     "langgraph>=1.2.0",
     "langgraph-checkpoint-postgres>=3.0.5",
+    "psycopg[binary,pool]>=3.1",
 ]
 
 

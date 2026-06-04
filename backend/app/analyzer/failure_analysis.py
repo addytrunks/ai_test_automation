@@ -15,26 +15,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analyzer.prompts import FAILURE_ANALYSIS_SYSTEM_PROMPT, build_failure_prompt
 from app.analyzer.schemas import FailureExplanation
-from app.llm.client import generate_structured
+from app.llm.client import generate_structured_with_usage
 from app.models import AIAnalysis, Test, TestResult
 
 logger = logging.getLogger(__name__)
 
 
-async def analyze_failure(db: AsyncSession, test_result_id: uuid.UUID) -> None:
+async def analyze_failure(db: AsyncSession, test_result_id: uuid.UUID) -> int:
     """Analyze a single failed test result using the LLM.
 
     Skips silently if the result doesn't exist or isn't in 'failed' status.
     Commits the AIAnalysis row immediately so the frontend can poll for it.
+    
+    Returns:
+        int: Number of LLM tokens consumed. Returns 0 if skipped or failed.
     """
     tr = await db.get(TestResult, test_result_id)
     if not tr or tr.status != "failed":
-        return
+        return 0
 
     test = await db.get(Test, tr.test_id)
     if not test:
         logger.warning("Test %s not found for result %s, skipping analysis", tr.test_id, test_result_id)
-        return
+        return 0
 
     prompt = build_failure_prompt(
         test_name=test.name,
@@ -53,10 +56,10 @@ async def analyze_failure(db: AsyncSession, test_result_id: uuid.UUID) -> None:
     existing = await db.scalar(select(AIAnalysis).where(AIAnalysis.test_result_id == test_result_id))
     if existing:
         logger.info("Analysis already exists for test result %s, skipping", test_result_id)
-        return
+        return 0
 
     try:
-        result = await generate_structured(
+        result, tokens_used = await generate_structured_with_usage(
             prompt=prompt,
             response_model=FailureExplanation,
             system_prompt=FAILURE_ANALYSIS_SYSTEM_PROMPT,
@@ -71,7 +74,9 @@ async def analyze_failure(db: AsyncSession, test_result_id: uuid.UUID) -> None:
         )
         db.add(analysis)
         await db.commit()
-        logger.info("Analysis saved for test result %s", test_result_id)
+        logger.info("Analysis saved for test result %s (tokens: %d)", test_result_id, tokens_used)
+        return tokens_used
     except Exception as e:
         logger.warning("Failed to analyze test result %s: %s", test_result_id, e)
         await db.rollback()
+        return 0

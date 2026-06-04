@@ -7,7 +7,7 @@ Every node reads from and writes partial updates back to this state.
 from __future__ import annotations
 
 import operator
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Any, Literal, TypedDict
 
 
 class AgenticLoopState(TypedDict):
@@ -36,7 +36,7 @@ class AgenticLoopState(TypedDict):
     max_depth: int
     max_tests_per_cycle: int
     last_run_id: str | None
-    last_gaps: list[dict]
+    last_gaps: list[dict[str, Any]]
     new_test_ids: list[str]
     total_tokens_used: Annotated[int, operator.add]
-    final_status: Literal["completed", "max_depth_hit", "no_high_gaps", "error"] | None
+    final_status: Literal["completed", "max_depth_hit", "no_high_gaps", "token_budget_hit", "error"] | None
