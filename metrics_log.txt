@@ -1,0 +1,12 @@
+Generation Time (Endpoint get /, baseline): 20.31 seconds\nGeneration Time (Endpoint get /books/v1, baseline): 29.44 seconds\nGeneration Time (Endpoint post /books/v1, baseline): 43.92 seconds\nGeneration Time (Endpoint get /books/v1/{book_title}, baseline): 48.02 seconds\nGeneration Time (Endpoint get /createdb, baseline): 20.75 seconds\nGeneration Time (Endpoint get /me, baseline): 46.78 seconds\nGeneration Time (Endpoint get /users/v1, baseline): 27.42 seconds\nGeneration Time (Endpoint get /users/v1/_debug, baseline): 23.87 seconds\nGeneration Time (Endpoint post /users/v1/login, baseline): 36.69 seconds\nGeneration Time (Endpoint post /users/v1/register, baseline): 47.71 seconds\nGeneration Time (Endpoint delete /users/v1/{username}, baseline): 52.54 seconds\nGeneration Time (Endpoint get /users/v1/{username}, baseline): 48.82 seconds\nGeneration Time (Endpoint put /users/v1/{username}/email, baseline): 72.79 seconds\nGeneration Time (Endpoint put /users/v1/{username}/password, baseline): 81.85 seconds\n
+Date: 2026-06-04 13:59:23
+Spec: VAmPI (from http://localhost:5001/openapi.json)
+Iterations run: 0 (Baseline only)
+Tests generated (per iteration): {0: 122}
+Generation time (seconds):
+- Spec upload & parse: 0.73s
+- Baseline Generation (Iter 0): 601.90s
+- Time from spec upload to first batch ready: 602.63s
+Total Time: 602.65s
+Notes: Automated metrics extraction run (Generation Time ONLY).
+--------------------------------------------------

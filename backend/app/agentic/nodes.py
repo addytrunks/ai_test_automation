@@ -215,6 +215,8 @@ async def generate_node(state: AgenticLoopState) -> dict[str, Any]:
     Uses savepoints (begin_nested) for IntegrityError handling so that a
     duplicate hash on one test doesn't roll back previously flushed tests.
     """
+    import time
+
     from app.generator.prompts import build_generation_prompt
     from app.generator.schemas import TestListResult
     from app.generator.service import SYSTEM_PROMPT
@@ -283,13 +285,18 @@ async def generate_node(state: AgenticLoopState) -> dict[str, Any]:
             gap_test_ids: list[str] = []
 
             try:
+                start_time = time.time()
                 result, tokens_used = await generate_structured_with_usage(
                     prompt=prompt,
                     response_model=TestListResult,
                     system_prompt=SYSTEM_PROMPT,
                     temperature=0.7,
                 )
+                generation_time = time.time() - start_time
                 tokens_this_step += tokens_used
+                
+                with open("../metrics_log.txt", "a") as f:  # noqa: ASYNC230
+                    f.write(f"Generation Time (Endpoint {endpoint.method} {endpoint.path}, depth {depth}): {generation_time:.2f} seconds\n")
 
                 for t_data in result.tests:
                     gen_hash = compute_generation_hash(

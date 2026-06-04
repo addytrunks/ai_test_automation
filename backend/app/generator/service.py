@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 import uuid
 
 from fastapi import BackgroundTasks, HTTPException
@@ -196,12 +197,18 @@ async def _generate_for_endpoint(
     # Call LLM with structured output
     # temperature=0.7: balanced between deterministic output and variation.
     # Tunable in Week 7 evaluation.
+    start_time = time.time()
     result = await generate_structured(
         prompt=prompt,
         response_model=TestListResult,
         system_prompt=SYSTEM_PROMPT,
         temperature=0.7,
     )
+    generation_time = time.time() - start_time
+    
+    # Log the generation time
+    with open("../metrics_log.txt", "a") as f:  # noqa: ASYNC230
+        f.write(f"Generation Time (Endpoint {endpoint.method} {endpoint.path}, baseline): {generation_time:.2f} seconds\n")
 
     logger.info(
         "[STEP 3/5] LLM returned %d raw tests. Validating...", len(result.tests),
