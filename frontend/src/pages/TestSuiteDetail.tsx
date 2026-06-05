@@ -1,14 +1,16 @@
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useParams, useNavigate, Link } from "react-router-dom"
 import { useState } from "react"
 import { JsonView, darkStyles } from "react-json-view-lite"
 import "react-json-view-lite/dist/index.css"
 
 import { getTestSuite, getTests } from "@/api/generator"
-import { triggerRun, listRuns } from "@/api/runner"
+import { triggerRun, listRuns, getSuiteGaps } from "@/api/runner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuthStore } from "@/hooks/useAuthStore"
+import RunLineageTree from "@/components/RunLineageTree"
+import CoverageGapList from "@/components/CoverageGapList"
 import type { Test } from "@/api/types"
 
 const METHOD_COLORS: Record<string, string> = {
@@ -47,6 +49,11 @@ function TestCard({ test }: { test: Test }) {
           >
             {test.scenario_type.replace("_", " ")}
           </span>
+          {test.auto_generated && (
+            <span className="inline-block rounded px-2 py-0.5 text-xs font-medium bg-violet-100 text-violet-700">
+              🤖 auto-generated
+            </span>
+          )}
           <span className="ml-auto text-xs font-mono text-slate-400">
             expects {test.expected_status}
           </span>
@@ -114,12 +121,14 @@ function CollapsibleJson({
 export default function TestSuiteDetail() {
   const { suiteId } = useParams<{ suiteId: string }>()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
 
   const [targetUrl, setTargetUrl] = useState("http://localhost:5001")
   const [runLoading, setRunLoading] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
+  const [loopActive, setLoopActive] = useState(false)
 
   // Poll suite status every 2s while pending/generating
   const { data: suite, isLoading: suiteLoading } = useQuery({
@@ -140,12 +149,31 @@ export default function TestSuiteDetail() {
     enabled: suite?.status === "ready",
   })
 
-  // Fetch recent runs for this suite
+  // Fetch runs — poll while agentic loop is active
   const { data: runs } = useQuery({
     queryKey: ["runs", suiteId],
     queryFn: () => listRuns(suiteId!),
     enabled: suite?.status === "ready",
+    refetchInterval: loopActive ? 3000 : false,
   })
+
+  // Fetch coverage gaps
+  const { data: gaps } = useQuery({
+    queryKey: ["suite-gaps", suiteId],
+    queryFn: () => getSuiteGaps(suiteId!),
+    enabled: suite?.status === "ready",
+    refetchInterval: loopActive ? 5000 : false,
+  })
+
+  // Detect if any run is still in progress
+  const hasActiveRun = runs?.some(
+    (r) => r.status === "pending" || r.status === "running" || r.status === "analyzing",
+  )
+
+  // Auto-stop polling when all runs settle
+  if (loopActive && runs && runs.length > 0 && !hasActiveRun) {
+    setLoopActive(false)
+  }
 
   const isGenerating =
     suite?.status === "pending" || suite?.status === "generating"
@@ -155,8 +183,12 @@ export default function TestSuiteDetail() {
     setRunLoading(true)
     setRunError(null)
     try {
-      const run = await triggerRun(suiteId, { target_base_url: targetUrl.trim() })
-      navigate(`/runs/${run.id}`)
+      await triggerRun(suiteId, { target_base_url: targetUrl.trim() })
+      // Start polling for runs — don't navigate, since there's no single run ID
+      setLoopActive(true)
+      // Invalidate runs to start fetching immediately
+      queryClient.invalidateQueries({ queryKey: ["runs", suiteId] })
+      queryClient.invalidateQueries({ queryKey: ["suite-gaps", suiteId] })
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Failed to trigger run"
       setRunError(msg)
@@ -263,44 +295,60 @@ export default function TestSuiteDetail() {
                     </div>
                     <Button
                       onClick={handleRunTests}
-                      disabled={runLoading || !targetUrl.trim()}
+                      disabled={runLoading || !targetUrl.trim() || !!hasActiveRun}
                       className="bg-blue-600 hover:bg-blue-700 text-white"
                     >
-                      {runLoading ? "Starting…" : "▶ Run Tests"}
+                      {runLoading ? "Starting…" : hasActiveRun ? "⏳ Loop Running…" : "▶ Run Tests"}
                     </Button>
                   </div>
                   {runError && (
                     <p className="text-xs text-red-600 mt-2">{runError}</p>
                   )}
+                  {(loopActive || hasActiveRun) && (
+                    <div className="mt-3 flex items-center gap-2 text-sm text-blue-600">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-blue-500" />
+                      </span>
+                      Agentic loop is running. Iterations will appear below as they complete.
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
-              {/* Recent runs */}
+              {/* Agentic Loop Lineage Tree */}
               {runs && runs.length > 0 && (
-                <div className="mb-6">
-                  <h2 className="text-sm font-medium text-slate-600 mb-2">Recent Runs</h2>
-                  <div className="flex flex-wrap gap-2">
-                    {runs.slice(0, 5).map((r) => (
-                      <Link
-                        key={r.id}
-                        to={`/runs/${r.id}`}
-                        className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium border transition-colors hover:shadow-sm ${
-                          r.status === "completed"
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : r.status === "error"
-                              ? "bg-red-50 text-red-700 border-red-200"
-                              : "bg-blue-50 text-blue-700 border-blue-200 animate-pulse"
-                        }`}
-                      >
-                        {r.status === "completed"
-                          ? `✅ ${r.summary?.passed ?? 0}/${r.summary?.total ?? 0} passed`
-                          : r.status === "error"
-                            ? "❌ Error"
-                            : `⏳ ${r.status}`}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
+                <Card className="mb-6">
+                  <CardHeader>
+                    <CardTitle className="text-base">Run Lineage</CardTitle>
+                    <p className="text-xs text-slate-500">
+                      Each node is an iteration of the agentic loop. Click a node to view its results.
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <RunLineageTree
+                      runs={runs}
+                      onRunClick={(runId) => navigate(`/runs/${runId}`)}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Coverage Gaps */}
+              {gaps && gaps.length > 0 && (
+                <Card className="mb-6">
+                  <CardHeader>
+                    <CardTitle className="text-base">
+                      Coverage Gaps ({gaps.length})
+                    </CardTitle>
+                    <p className="text-xs text-slate-500">
+                      Untested scenarios identified by the AI across all iterations.
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <CoverageGapList gaps={gaps} />
+                  </CardContent>
+                </Card>
               )}
 
               <p className="text-sm text-slate-500 mb-6">

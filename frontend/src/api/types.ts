@@ -100,6 +100,9 @@ export interface Test {
   assertions: TestAssertion[] | null
   extract: Record<string, string> | null
   static_context: Record<string, string> | null
+  auto_generated: boolean
+  parent_coverage_gap_id: string | null
+  generation_depth: number | null
 }
 
 export interface TestSuiteCreatePayload {
@@ -137,6 +140,11 @@ export interface RunCreatePayload {
   target_base_url: string
 }
 
+export interface RunAccepted {
+  suite_id: string
+  status: string
+}
+
 export interface AssertionResult {
   assertion: TestAssertion
   passed: boolean
@@ -164,5 +172,16 @@ export interface AIAnalysis {
   explanation: string
   likely_cause: string
   suggested_fix: string
+  created_at: string
+}
+
+export interface CoverageGap {
+  id: string
+  test_suite_id: string
+  endpoint_id: string
+  run_id: string
+  scenario_description: string
+  severity: "high" | "medium" | "low"
+  spawned_test_id: string | null
   created_at: string
 }

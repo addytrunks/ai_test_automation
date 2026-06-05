@@ -17,9 +17,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agentic.checkpointer import get_checkpointer
 from app.agentic.graph import build_graph
 from app.agentic.state import AgenticLoopState
-from app.analyzer.schemas import AIAnalysisRead, RunCreate, RunRead, TestResultRead
+from app.analyzer.schemas import AIAnalysisRead, CoverageGapRead, RunAccepted, RunCreate, RunRead, TestResultRead
 from app.deps import CurrentUser, DbSession
-from app.models import AIAnalysis, Project, Run, Test, TestResult, TestSuite
+from app.models import AIAnalysis, CoverageGap, Endpoint, Project, Run, Test, TestResult, TestSuite
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -131,7 +131,7 @@ async def run_agentic_loop(
 
 @router.post(
     "/test-suites/{suite_id}/runs",
-    response_model=RunRead,
+    response_model=RunAccepted,
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def trigger_run(
@@ -140,7 +140,7 @@ async def trigger_run(
     background_tasks: BackgroundTasks,
     user: CurrentUser,
     db: DbSession,
-) -> dict[str, str]:
+) -> RunAccepted:
     """Trigger an agentic test run for a suite against a target URL.
 
     Returns 202 Accepted immediately. The frontend should poll
@@ -162,7 +162,7 @@ async def trigger_run(
         run_agentic_loop, suite_id, payload.target_base_url
     )
 
-    return {"suite_id": str(suite_id), "status": "accepted"}
+    return RunAccepted(suite_id=suite_id)
 
 
 @router.get("/test-suites/{suite_id}/runs", response_model=list[RunRead])
@@ -230,3 +230,37 @@ async def get_analysis(
     if not analysis:
         raise HTTPException(status_code=404, detail="Analysis not available yet")
     return analysis  # type: ignore[return-value]
+
+
+@router.get("/runs/{run_id}/gaps", response_model=list[CoverageGapRead])
+async def list_run_gaps(
+    run_id: uuid.UUID,
+    user: CurrentUser,
+    db: DbSession,
+) -> list[CoverageGapRead]:
+    """List coverage gaps discovered during a specific run."""
+    await _verify_run_ownership(db, run_id, user.id)
+
+    result = await db.execute(
+        select(CoverageGap)
+        .where(CoverageGap.run_id == run_id)
+        .order_by(CoverageGap.severity.desc(), CoverageGap.created_at)
+    )
+    return list(result.scalars().all())  # type: ignore[arg-type]
+
+
+@router.get("/test-suites/{suite_id}/gaps", response_model=list[CoverageGapRead])
+async def list_suite_gaps(
+    suite_id: uuid.UUID,
+    user: CurrentUser,
+    db: DbSession,
+) -> list[CoverageGapRead]:
+    """List all coverage gaps for a test suite across all runs."""
+    await _verify_suite_ownership(db, suite_id, user.id)
+
+    result = await db.execute(
+        select(CoverageGap)
+        .where(CoverageGap.test_suite_id == suite_id)
+        .order_by(CoverageGap.created_at.desc())
+    )
+    return list(result.scalars().all())  # type: ignore[arg-type]

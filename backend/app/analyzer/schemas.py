@@ -48,6 +48,17 @@ class RunCreate(BaseModel):
     )
 
 
+class RunAccepted(BaseModel):
+    """Response schema for 202 Accepted when triggering an agentic run.
+
+    The frontend should poll GET /test-suites/{suite_id}/runs
+    to see loop iterations appear.
+    """
+
+    suite_id: uuid.UUID
+    status: str = "accepted"
+
+
 class RunRead(BaseModel):
     """Response schema for a run."""
 
@@ -92,4 +103,19 @@ class AIAnalysisRead(BaseModel):
     explanation: str
     likely_cause: str
     suggested_fix: str
+    created_at: Any
+
+
+class CoverageGapRead(BaseModel):
+    """Response schema for a coverage gap."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    test_suite_id: uuid.UUID
+    endpoint_id: uuid.UUID
+    run_id: uuid.UUID
+    scenario_description: str
+    severity: str
+    spawned_test_id: uuid.UUID | None
     created_at: Any

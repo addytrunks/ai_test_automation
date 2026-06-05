@@ -4,13 +4,14 @@ import { useState } from "react"
 import { JsonView, darkStyles } from "react-json-view-lite"
 import "react-json-view-lite/dist/index.css"
 
-import { getRun, getRunResults } from "@/api/runner"
+import { getRun, getRunResults, getRunGaps } from "@/api/runner"
 import { getTests } from "@/api/generator"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuthStore } from "@/hooks/useAuthStore"
 import AssertionList from "@/components/AssertionList"
 import AIAnalysisPanel from "@/components/AIAnalysisPanel"
+import CoverageGapList from "@/components/CoverageGapList"
 import type { TestResult, Test } from "@/api/types"
 
 const STATUS_ICON: Record<string, string> = {
@@ -77,6 +78,11 @@ function ResultCard({
             {test && (
               <span className="text-xs font-mono text-slate-400">
                 {test.method.toUpperCase()} {test.path}
+              </span>
+            )}
+            {test?.auto_generated && (
+              <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-violet-100 text-violet-700">
+                🤖
               </span>
             )}
             {result.response_status && (
@@ -188,6 +194,13 @@ export default function RunDetail() {
     refetchInterval: run?.status === "analyzing" ? 5000 : false,
   })
 
+  // Fetch coverage gaps for this specific run
+  const { data: gaps } = useQuery({
+    queryKey: ["run-gaps", runId],
+    queryFn: () => getRunGaps(runId!),
+    enabled: run?.status === "completed",
+  })
+
   // Fetch test definitions to map result → test metadata
   const { data: tests } = useQuery({
     queryKey: ["tests", run?.test_suite_id],
@@ -213,11 +226,16 @@ export default function RunDetail() {
           </button>
           <h1 className="text-2xl font-semibold">Run Results</h1>
           {run && (
-            <span
-              className={`inline-block rounded-full px-3 py-0.5 text-xs font-medium ${RUN_STATUS_STYLES[run.status] ?? "bg-slate-100"}`}
-            >
-              {run.status}
-            </span>
+            <>
+              <span
+                className={`inline-block rounded-full px-3 py-0.5 text-xs font-medium ${RUN_STATUS_STYLES[run.status] ?? "bg-slate-100"}`}
+              >
+                {run.status}
+              </span>
+              <span className="text-xs text-slate-400 font-mono">
+                Iteration {run.loop_iteration}
+              </span>
+            </>
           )}
         </div>
         <div className="flex items-center gap-4">
@@ -302,6 +320,23 @@ export default function RunDetail() {
                 <p className="text-xs text-slate-500 mt-1">Skipped</p>
               </div>
             </div>
+          )}
+
+          {/* Coverage Gaps for this run */}
+          {gaps && gaps.length > 0 && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="text-base">
+                  Coverage Gaps ({gaps.length})
+                </CardTitle>
+                <p className="text-xs text-slate-500">
+                  Untested scenarios identified during this iteration.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <CoverageGapList gaps={gaps} />
+              </CardContent>
+            </Card>
           )}
 
           {/* Test results */}

@@ -51,6 +51,7 @@ async def execute_run_node(state: AgenticLoopState) -> dict[str, Any]:
     session_factory = _get_session_factory()
     suite_id = uuid.UUID(state["test_suite_id"])
     depth = state["current_depth"]
+    logger.info(f"==> [execute_run_node] Starting execution for suite {suite_id} at depth {depth}")
 
     async with session_factory() as db:
         # Determine which tests to execute
