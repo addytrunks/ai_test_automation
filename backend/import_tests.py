@@ -43,8 +43,11 @@ async def import_tests(
         endpoints = res.scalars().all()
         ep_map = {f"{e.method.upper()}_{e.path}": e.id for e in endpoints}
 
-        with open(json_path, encoding="utf-8") as f:
-            test_dicts = json.load(f)
+        def load_json_file(path: str):
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+
+        test_dicts = await asyncio.to_thread(load_json_file, json_path)
 
         imported = 0
         for td in test_dicts:

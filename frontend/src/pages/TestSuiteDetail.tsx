@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { useParams, useNavigate, Link } from "react-router-dom"
+import { useParams, useNavigate } from "react-router-dom"
 import { useState } from "react"
 import { JsonView, darkStyles } from "react-json-view-lite"
 import "react-json-view-lite/dist/index.css"
