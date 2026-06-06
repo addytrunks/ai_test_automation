@@ -17,9 +17,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agentic.checkpointer import get_checkpointer
 from app.agentic.graph import build_graph
 from app.agentic.state import AgenticLoopState
-from app.analyzer.schemas import AIAnalysisRead, CoverageGapRead, RunAccepted, RunCreate, RunRead, TestResultRead
+from app.analyzer.schemas import (
+    AIAnalysisRead,
+    CoverageGapRead,
+    RunAccepted,
+    RunCreate,
+    RunRead,
+    TestResultRead,
+)
 from app.deps import CurrentUser, DbSession
-from app.models import AIAnalysis, CoverageGap, Endpoint, Project, Run, Test, TestResult, TestSuite
+from app.models import AIAnalysis, CoverageGap, Project, Run, Test, TestResult, TestSuite
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -92,6 +99,19 @@ async def run_agentic_loop(
     Creates its own checkpointer and DB sessions (since BackgroundTasks
     run outside the request lifecycle).
     """
+    from app.db import get_sessionmaker
+
+    session_factory = get_sessionmaker()
+    loop_thread_id = f"{suite_id}:{uuid.uuid4()}"
+
+    async with session_factory() as db:
+        suite = await db.get(TestSuite, suite_id)
+        if not suite:
+            logger.error("Agentic loop aborted: suite %s not found", suite_id)
+            return
+        max_depth = min(suite.auto_loop_max_depth, 5)
+        max_tests_per_cycle = min(suite.auto_loop_max_tests_per_cycle, 10)
+
     try:
         async with get_checkpointer() as checkpointer:
             graph = build_graph(checkpointer=checkpointer)
@@ -100,8 +120,8 @@ async def run_agentic_loop(
                 "test_suite_id": str(suite_id),
                 "target_base_url": target_base_url,
                 "current_depth": 0,
-                "max_depth": 3,
-                "max_tests_per_cycle": 10,
+                "max_depth": max_depth,
+                "max_tests_per_cycle": max_tests_per_cycle,
                 "last_run_id": None,
                 "last_gaps": [],
                 "new_test_ids": [],
@@ -109,8 +129,7 @@ async def run_agentic_loop(
                 "final_status": None,
             }
 
-            # thread_id is REQUIRED for the checkpointer to key state correctly.
-            config = {"configurable": {"thread_id": str(suite_id)}}
+            config = {"configurable": {"thread_id": loop_thread_id}}
 
             result = await graph.ainvoke(initial_state, config=config)
             logger.info(

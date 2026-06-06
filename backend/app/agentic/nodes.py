@@ -10,7 +10,6 @@ Node flow: execute_run -> analyze -> [decide_continue] -> generate | finalize
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import uuid
 from datetime import UTC, datetime
@@ -21,6 +20,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio.session import async_sessionmaker
 
+from app.agentic.dedup import (
+    compute_generation_hash,
+    infer_scenario_type,
+    scenario_is_sufficiently_covered,
+)
 from app.agentic.state import AgenticLoopState
 from app.analyzer.coverage_analysis import analyze_coverage_gaps
 from app.analyzer.failure_analysis import analyze_failure
@@ -64,15 +68,19 @@ async def execute_run_node(state: AgenticLoopState) -> dict[str, Any]:
             )
             tests = list(result.scalars().all())
         else:
-            # Subsequent iterations: run ONLY newly generated tests
+            # Subsequent iterations: run ONLY newly generated tests + setup tests
             new_ids = [uuid.UUID(tid) for tid in state["new_test_ids"]]
             if not new_ids:
                 logger.warning("No new_test_ids at depth %d, skipping execution", depth)
                 return {"last_run_id": state["last_run_id"]}
 
+            # We MUST include the suite's setup tests so runtime_context is populated
             result = await db.execute(
                 select(Test)
-                .where(Test.id.in_(new_ids))
+                .where(
+                    (Test.id.in_(new_ids)) | 
+                    ((Test.test_suite_id == suite_id) & (Test.scenario_type == "setup"))
+                )
                 .order_by(Test.path, Test.method)
             )
             tests = list(result.scalars().all())
@@ -155,8 +163,9 @@ async def analyze_node(state: AgenticLoopState) -> dict[str, Any]:
                 "━━━ Analyzing %d failures for run %s ━━━",
                 len(failed_list), run_id,
             )
-            for tr in failed_list:
-                tokens = await analyze_failure(db, tr.id)
+            failed_ids = [tr.id for tr in failed_list]
+            for tr_id in failed_ids:
+                tokens = await analyze_failure(db, tr_id)
                 tokens_this_step += tokens
 
         # Phase 2: Coverage gap analysis
@@ -197,17 +206,6 @@ async def analyze_node(state: AgenticLoopState) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def compute_generation_hash(endpoint_id: str, scenario_type: str, description: str) -> str:
-    """Compute SHA-256 dedup hash for a generated test.
-
-    NOTE: This is string-based deduplication. Two semantically identical
-    descriptions with different wording produce different hashes.
-    Acceptable for POC; production would use semantic similarity.
-    """
-    raw = f"{endpoint_id}:{scenario_type}:{description.strip().lower()}"
-    return hashlib.sha256(raw.encode()).hexdigest()
-
-
 async def generate_node(state: AgenticLoopState) -> dict[str, Any]:
     """Generate new tests from coverage gaps.
 
@@ -216,8 +214,6 @@ async def generate_node(state: AgenticLoopState) -> dict[str, Any]:
     Uses savepoints (begin_nested) for IntegrityError handling so that a
     duplicate hash on one test doesn't roll back previously flushed tests.
     """
-    import time
-
     from app.generator.prompts import build_generation_prompt
     from app.generator.schemas import TestListResult
     from app.generator.service import SYSTEM_PROMPT
@@ -240,7 +236,12 @@ async def generate_node(state: AgenticLoopState) -> dict[str, Any]:
     new_test_ids: list[str] = []
 
     async with session_factory() as db:
-        # Fetch existing hashes for dedup
+        suite_tests = list(
+            (
+                await db.execute(select(Test).where(Test.test_suite_id == suite_id))
+            ).scalars().all()
+        )
+
         existing_hashes_result = await db.execute(
             select(Test.generation_hash).where(
                 Test.test_suite_id == suite_id,
@@ -256,7 +257,15 @@ async def generate_node(state: AgenticLoopState) -> dict[str, Any]:
                 logger.warning("Endpoint %s not found, skipping gap", endpoint_id)
                 continue
 
-            # Build prompt for this specific gap
+            if scenario_is_sufficiently_covered(
+                suite_tests, endpoint_id, gap["scenario_description"]
+            ):
+                logger.info(
+                    "Skipping gap — scenario already covered: %s",
+                    gap["scenario_description"][:80],
+                )
+                continue
+
             ep_dict = {
                 "method": endpoint.method,
                 "path": endpoint.path,
@@ -267,43 +276,46 @@ async def generate_node(state: AgenticLoopState) -> dict[str, Any]:
                 "security": endpoint.security,
             }
 
-            # Determine scenario type from the gap description
-            desc_lower = gap["scenario_description"].lower()
-            if "bola" in desc_lower or "idor" in desc_lower:
-                scenario = "bola"
-            elif "auth" in desc_lower or "bypass" in desc_lower:
-                scenario = "auth_bypass"
-            elif "injection" in desc_lower or "sqli" in desc_lower:
-                scenario = "injection"
-            elif "boundary" in desc_lower or "edge" in desc_lower:
-                scenario = "boundary"
-            else:
-                scenario = "negative"
+            scenario = infer_scenario_type(gap["scenario_description"])
 
             prompt = build_generation_prompt(ep_dict, [scenario])
-
+            prompt += (
+                f"\n\nCRITICAL INSTRUCTION: You are generating tests SPECIFICALLY to "
+                f"address this coverage gap: '{gap['scenario_description']}'.\n"
+                f"DO NOT generate generic tests. DO NOT generate more than 2 highly targeted tests for this gap."
+            )
             # Track tests spawned specifically for THIS gap
             gap_test_ids: list[str] = []
 
             try:
-                start_time = time.time()
                 result, tokens_used = await generate_structured_with_usage(
                     prompt=prompt,
                     response_model=TestListResult,
                     system_prompt=SYSTEM_PROMPT,
                     temperature=0.7,
                 )
-                generation_time = time.time() - start_time
                 tokens_this_step += tokens_used
-                
-                with open("../metrics_log.txt", "a") as f:  # noqa: ASYNC230
-                    f.write(f"Generation Time (Endpoint {endpoint.method} {endpoint.path}, depth {depth}): {generation_time:.2f} seconds\n")
 
                 for t_data in result.tests:
+                    test_method = (
+                        t_data.method or endpoint.method
+                        if t_data.scenario_type == "setup"
+                        else endpoint.method
+                    )
+                    test_path = (
+                        t_data.path or endpoint.path
+                        if t_data.scenario_type == "setup"
+                        else endpoint.path
+                    )
                     gen_hash = compute_generation_hash(
                         str(endpoint_id),
                         t_data.scenario_type,
-                        t_data.description or t_data.name,
+                        test_method,
+                        test_path,
+                        path_params=t_data.path_params,
+                        query_params=t_data.query_params,
+                        body=t_data.body if isinstance(t_data.body, dict) else None,
+                        expected_status=t_data.expected_status,
                     )
 
                     # Skip if already exists in memory set
@@ -317,8 +329,8 @@ async def generate_node(state: AgenticLoopState) -> dict[str, Any]:
                         name=(t_data.name or "")[:255],
                         description=(t_data.description or "")[:1024],
                         scenario_type=t_data.scenario_type,
-                        method=endpoint.method,
-                        path=endpoint.path,
+                        method=test_method,
+                        path=test_path,
                         path_params=t_data.path_params,
                         query_params=t_data.query_params,
                         headers=t_data.headers,
@@ -342,6 +354,7 @@ async def generate_node(state: AgenticLoopState) -> dict[str, Any]:
                         existing_hashes.add(gen_hash)
                         gap_test_ids.append(str(test.id))
                         new_test_ids.append(str(test.id))
+                        suite_tests.append(test)
                         logger.info("Generated test: %s (hash: %s...)", t_data.name, gen_hash[:12])
                     except IntegrityError:
                         logger.info("Duplicate hash detected by DB constraint, skipping: %s", t_data.name)

@@ -1,0 +1,1018 @@
+[
+  {
+    "name": "Register User A",
+    "description": "Creates User A account via the registration endpoint",
+    "scenario_type": "setup",
+    "method": "POST",
+    "path": "/users/v1/register",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "email": "usera@test.com",
+      "password": "Password123!",
+      "username": "test_user_a"
+    },
+    "path_params": {},
+    "query_params": {},
+    "expected_status": 200,
+    "assertions": [
+      {
+        "type": "status_eq",
+        "expected": 200
+      }
+    ],
+    "extract": null,
+    "static_context": {
+      "USER_A_ID": "test_user_a"
+    }
+  },
+  {
+    "name": "Register User B",
+    "description": "Creates User B account required for BOLA tests where User A accesses User B resources",
+    "scenario_type": "setup",
+    "method": "POST",
+    "path": "/users/v1/register",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "email": "userb@test.com",
+      "password": "Password123!",
+      "username": "test_user_b"
+    },
+    "path_params": {},
+    "query_params": {},
+    "expected_status": 200,
+    "assertions": [
+      {
+        "type": "status_eq",
+        "expected": 200
+      }
+    ],
+    "extract": null,
+    "static_context": {
+      "USER_B_ID": "test_user_b"
+    }
+  },
+  {
+    "name": "Acquire User A token",
+    "description": "Logs in as User A and extracts the auth token into runtime context",
+    "scenario_type": "setup",
+    "method": "POST",
+    "path": "/users/v1/login",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "password": "Password123!",
+      "username": "test_user_a"
+    },
+    "path_params": {},
+    "query_params": {},
+    "expected_status": 200,
+    "assertions": [
+      {
+        "type": "status_eq",
+        "expected": 200
+      },
+      {
+        "op": "exists",
+        "type": "json_path",
+        "target": "$.auth_token"
+      }
+    ],
+    "extract": {
+      "USER_A_TOKEN": "$.auth_token"
+    },
+    "static_context": null
+  },
+  {
+    "name": "Acquire User B token",
+    "description": "Logs in as User B and extracts the auth token into runtime context for BOLA tests",
+    "scenario_type": "setup",
+    "method": "POST",
+    "path": "/users/v1/login",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "password": "Password123!",
+      "username": "test_user_b"
+    },
+    "path_params": {},
+    "query_params": {},
+    "expected_status": 200,
+    "assertions": [
+      {
+        "type": "status_eq",
+        "expected": 200
+      },
+      {
+        "op": "exists",
+        "type": "json_path",
+        "target": "$.auth_token"
+      }
+    ],
+    "extract": {
+      "USER_B_TOKEN": "$.auth_token"
+    },
+    "static_context": null
+  },
+  {
+    "name": "Update own email successfully",
+    "description": "Verifies the user can update their own email with a valid new email address",
+    "scenario_type": "positive",
+    "method": "put",
+    "path": "/users/v1/{username}/email",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer {{USER_A_TOKEN}}"
+    },
+    "body": {
+      "email": "newemail@test.com"
+    },
+    "path_params": {
+      "username": "test_user_a"
+    },
+    "query_params": {},
+    "expected_status": 204,
+    "assertions": [
+      {
+        "type": "status_eq",
+        "expected": 204
+      }
+    ],
+    "extract": null,
+    "static_context": null
+  },
+  {
+    "name": "Update own email with another valid email format",
+    "description": "Verifies the endpoint accepts different valid email formats",
+    "scenario_type": "positive",
+    "method": "put",
+    "path": "/users/v1/{username}/email",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer {{USER_A_TOKEN}}"
+    },
+    "body": {
+      "email": "user.name+tag@domain.co.uk"
+    },
+    "path_params": {
+      "username": "test_user_a"
+    },
+    "query_params": {},
+    "expected_status": 204,
+    "assertions": [
+      {
+        "type": "status_eq",
+        "expected": 204
+      }
+    ],
+    "extract": null,
+    "static_context": null
+  },
+  {
+    "name": "Update own email with max length valid email",
+    "description": "Verifies the endpoint handles a valid email at typical maximum length (254 characters)",
+    "scenario_type": "positive",
+    "method": "put",
+    "path": "/users/v1/{username}/email",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer {{USER_A_TOKEN}}"
+    },
+    "body": {
+      "email": "user@test.com"
+    },
+    "path_params": {
+      "username": "test_user_a"
+    },
+    "query_params": {},
+    "expected_status": 204,
+    "assertions": [
+      {
+        "type": "status_eq",
+        "expected": 204
+      }
+    ],
+    "extract": null,
+    "static_context": null
+  },
+  {
+    "name": "Fail to update email when not authenticated",
+    "description": "Verifies the API returns 401 when no bearer token is provided",
+    "scenario_type": "negative",
+    "method": "put",
+    "path": "/users/v1/{username}/email",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "email": "newemail@test.com"
+    },
+    "path_params": {
+      "username": "test_user_a"
+    },
+    "query_params": {},
+    "expected_status": 401,
+    "assertions": [
+      {
+        "type": "status_eq",
+        "expected": 401
+      }
+    ],
+    "extract": null,
+    "static_context": null
+  },
+  {
+    "name": "Fail to update email with invalid token",
+    "description": "Verifies the API returns 401 when an invalid bearer token is provided",
+    "scenario_type": "negative",
+    "method": "put",
+    "path": "/users/v1/{username}/email",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer invalidtoken"
+    },
+    "body": {
+      "email": "newemail@test.com"
+    },
+    "path_params": {
+      "username": "test_user_a"
+    },
+    "query_params": {},
+    "expected_status": 401,
+    "assertions": [
+      {
+        "type": "status_eq",
+        "expected": 401
+      }
+    ],
+    "extract": null,
+    "static_context": null
+  },
+  {
+    "name": "Fail to update email with missing email body field",
+    "description": "Verifies the API returns 400 when the email field is missing from the request body",
+    "scenario_type": "negative",
+    "method": "put",
+    "path": "/users/v1/{username}/email",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer {{USER_A_TOKEN}}"
+    },
+    "body": {},
+    "path_params": {
+      "username": "test_user_a"
+    },
+    "query_params": {},
+    "expected_status": 400,
+    "assertions": [
+      {
+        "type": "status_eq",
+        "expected": 400
+      }
+    ],
+    "extract": null,
+    "static_context": null
+  },
+  {
+    "name": "Fail to update email with invalid email format",
+    "description": "Verifies the API returns 400 when an invalid email format is provided",
+    "scenario_type": "negative",
+    "method": "put",
+    "path": "/users/v1/{username}/email",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer {{USER_A_TOKEN}}"
+    },
+    "body": {
+      "email": "not-an-email"
+    },
+    "path_params": {
+      "username": "test_user_a"
+    },
+    "query_params": {},
+    "expected_status": 400,
+    "assertions": [
+      {
+        "type": "status_eq",
+        "expected": 400
+      }
+    ],
+    "extract": null,
+    "static_context": null
+  },
+  {
+    "name": "Login with empty username",
+    "description": "Verifies login fails when username is empty string",
+    "scenario_type": "negative",
+    "method": "post",
+    "path": "/users/v1/login",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "password": "pass1",
+      "username": ""
+    },
+    "path_params": {},
+    "query_params": {},
+    "expected_status": 400,
+    "assertions": [
+      {
+        "op": "",
+        "type": "status_eq",
+        "target": "",
+        "expected": 400
+      }
+    ],
+    "extract": {},
+    "static_context": {}
+  },
+  {
+    "name": "Fail to update email for non-existent username",
+    "description": "Verifies the API returns 404 or 400 when the username path parameter does not correspond to an existing user",
+    "scenario_type": "negative",
+    "method": "put",
+    "path": "/users/v1/{username}/email",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer {{USER_A_TOKEN}}"
+    },
+    "body": {
+      "email": "newemail@test.com"
+    },
+    "path_params": {
+      "username": "nonexistentuser123"
+    },
+    "query_params": {},
+    "expected_status": 400,
+    "assertions": [
+      {
+        "type": "status_eq",
+        "expected": 400
+      }
+    ],
+    "extract": null,
+    "static_context": null
+  },
+  {
+    "name": "Fail to update email when other user attempts change",
+    "description": "Verifies that User B cannot update User A's email (BOLA scenario), expecting 400 or 401",
+    "scenario_type": "negative",
+    "method": "put",
+    "path": "/users/v1/{username}/email",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer {{USER_B_TOKEN}}"
+    },
+    "body": {
+      "email": "hacked@test.com"
+    },
+    "path_params": {
+      "username": "test_user_a"
+    },
+    "query_params": {},
+    "expected_status": 400,
+    "assertions": [
+      {
+        "type": "status_eq",
+        "expected": 400
+      }
+    ],
+    "extract": null,
+    "static_context": null
+  },
+  {
+    "name": "Update own password successfully",
+    "description": "User A updates their own password with a valid new password",
+    "scenario_type": "positive",
+    "method": "put",
+    "path": "/users/v1/{username}/password",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer {{USER_A_TOKEN}}"
+    },
+    "body": {
+      "password": "newpass123"
+    },
+    "path_params": {
+      "username": "user_a"
+    },
+    "query_params": {},
+    "expected_status": 204,
+    "assertions": [
+      {
+        "op": "",
+        "type": "status_eq",
+        "target": "",
+        "expected": 204
+      }
+    ],
+    "extract": {},
+    "static_context": {}
+  },
+  {
+    "name": "Update password with empty string",
+    "description": "Attempt to update password with an empty string, expecting 400",
+    "scenario_type": "negative",
+    "method": "put",
+    "path": "/users/v1/{username}/password",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer {{USER_A_TOKEN}}"
+    },
+    "body": {
+      "password": ""
+    },
+    "path_params": {
+      "username": "user_a"
+    },
+    "query_params": {},
+    "expected_status": 400,
+    "assertions": [
+      {
+        "op": "",
+        "type": "status_eq",
+        "target": "",
+        "expected": 400
+      },
+      {
+        "op": "exists",
+        "type": "json_path",
+        "target": "$.status",
+        "expected": ""
+      }
+    ],
+    "extract": {},
+    "static_context": {}
+  },
+  {
+    "name": "Update password without authentication",
+    "description": "Attempt to update password without providing a Bearer token, expecting 401",
+    "scenario_type": "negative",
+    "method": "put",
+    "path": "/users/v1/{username}/password",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "password": "newpass456"
+    },
+    "path_params": {
+      "username": "user_a"
+    },
+    "query_params": {},
+    "expected_status": 401,
+    "assertions": [
+      {
+        "op": "",
+        "type": "status_eq",
+        "target": "",
+        "expected": 401
+      },
+      {
+        "op": "exists",
+        "type": "json_path",
+        "target": "$.status",
+        "expected": ""
+      }
+    ],
+    "extract": {},
+    "static_context": {}
+  },
+  {
+    "name": "Update password of another user",
+    "description": "User B tries to update user A's password, expecting 401 (unauthorized)",
+    "scenario_type": "negative",
+    "method": "put",
+    "path": "/users/v1/{username}/password",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer {{USER_B_TOKEN}}"
+    },
+    "body": {
+      "password": "hackedpass"
+    },
+    "path_params": {
+      "username": "user_a"
+    },
+    "query_params": {},
+    "expected_status": 401,
+    "assertions": [
+      {
+        "op": "",
+        "type": "status_eq",
+        "target": "",
+        "expected": 401
+      },
+      {
+        "op": "exists",
+        "type": "json_path",
+        "target": "$.status",
+        "expected": ""
+      }
+    ],
+    "extract": {},
+    "static_context": {}
+  },
+  {
+    "name": "Update password of non-existent user",
+    "description": "Attempt to update password for a username that does not exist, expecting 401 or 404",
+    "scenario_type": "negative",
+    "method": "put",
+    "path": "/users/v1/{username}/password",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer {{USER_A_TOKEN}}"
+    },
+    "body": {
+      "password": "newpass789"
+    },
+    "path_params": {
+      "username": "nonexistent_user"
+    },
+    "query_params": {},
+    "expected_status": 401,
+    "assertions": [
+      {
+        "op": "",
+        "type": "status_in",
+        "target": "",
+        "expected": [
+          401,
+          404
+        ]
+      }
+    ],
+    "extract": {},
+    "static_context": {}
+  },
+  {
+    "name": "Update password with missing password field",
+    "description": "Send a request without the password field, expecting 400",
+    "scenario_type": "negative",
+    "method": "put",
+    "path": "/users/v1/{username}/password",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer {{USER_A_TOKEN}}"
+    },
+    "body": {},
+    "path_params": {
+      "username": "user_a"
+    },
+    "query_params": {},
+    "expected_status": 400,
+    "assertions": [
+      {
+        "op": "",
+        "type": "status_eq",
+        "target": "",
+        "expected": 400
+      },
+      {
+        "op": "exists",
+        "type": "json_path",
+        "target": "$.status",
+        "expected": ""
+      }
+    ],
+    "extract": {},
+    "static_context": {}
+  },
+  {
+    "name": "Retrieve existing user by username",
+    "description": "Verifies that a valid username returns the user's email and username with status 200",
+    "scenario_type": "positive",
+    "method": "get",
+    "path": "/users/v1/{username}",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": null,
+    "path_params": {
+      "username": "name1"
+    },
+    "query_params": {},
+    "expected_status": 200,
+    "assertions": [
+      {
+        "type": "status_eq",
+        "expected": 200
+      },
+      {
+        "type": "body_contains",
+        "expected": "name1"
+      },
+      {
+        "type": "body_contains",
+        "expected": "mail1@mail.com"
+      },
+      {
+        "op": "exists",
+        "type": "json_path",
+        "target": "$.username"
+      },
+      {
+        "op": "exists",
+        "type": "json_path",
+        "target": "$.email"
+      }
+    ],
+    "extract": null,
+    "static_context": null
+  },
+  {
+    "name": "Retrieve non-existent user by username",
+    "description": "Verifies that a username not in the system returns a 404 status with 'fail' status",
+    "scenario_type": "negative",
+    "method": "get",
+    "path": "/users/v1/{username}",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": null,
+    "path_params": {
+      "username": "nonexistent_user"
+    },
+    "query_params": {},
+    "expected_status": 404,
+    "assertions": [
+      {
+        "type": "status_eq",
+        "expected": 404
+      },
+      {
+        "op": "exists",
+        "type": "json_path",
+        "target": "$.status"
+      },
+      {
+        "type": "body_contains",
+        "expected": "fail"
+      }
+    ],
+    "extract": null,
+    "static_context": null
+  },
+  {
+    "name": "Retrieve user with empty username",
+    "description": "Verifies that an empty username in the path returns 404 or appropriate error",
+    "scenario_type": "negative",
+    "method": "get",
+    "path": "/users/v1/{username}",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": null,
+    "path_params": {
+      "username": ""
+    },
+    "query_params": {},
+    "expected_status": 404,
+    "assertions": [
+      {
+        "type": "status_eq",
+        "expected": 404
+      }
+    ],
+    "extract": null,
+    "static_context": null
+  },
+  {
+    "name": "Login with valid credentials",
+    "description": "Verifies successful login with correct username and password",
+    "scenario_type": "positive",
+    "method": "post",
+    "path": "/users/v1/login",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "password": "pass1",
+      "username": "name1"
+    },
+    "path_params": {},
+    "query_params": {},
+    "expected_status": 200,
+    "assertions": [
+      {
+        "op": "",
+        "type": "status_eq",
+        "target": "",
+        "expected": 200
+      },
+      {
+        "op": "eq",
+        "type": "json_path",
+        "target": "$.status",
+        "expected": "success"
+      },
+      {
+        "op": "exists",
+        "type": "json_path",
+        "target": "$.auth_token",
+        "expected": true
+      }
+    ],
+    "extract": {},
+    "static_context": {}
+  },
+  {
+    "name": "Login with valid credentials and verify message",
+    "description": "Verifies successful login returns expected success message",
+    "scenario_type": "positive",
+    "method": "post",
+    "path": "/users/v1/login",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "password": "pass1",
+      "username": "name1"
+    },
+    "path_params": {},
+    "query_params": {},
+    "expected_status": 200,
+    "assertions": [
+      {
+        "op": "",
+        "type": "status_eq",
+        "target": "",
+        "expected": 200
+      },
+      {
+        "op": "eq",
+        "type": "json_path",
+        "target": "$.message",
+        "expected": "Successfully logged in."
+      }
+    ],
+    "extract": {},
+    "static_context": {}
+  },
+  {
+    "name": "Login with invalid password",
+    "description": "Verifies login fails with incorrect password",
+    "scenario_type": "negative",
+    "method": "post",
+    "path": "/users/v1/login",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "password": "wrongpassword",
+      "username": "name1"
+    },
+    "path_params": {},
+    "query_params": {},
+    "expected_status": 400,
+    "assertions": [
+      {
+        "op": "",
+        "type": "status_eq",
+        "target": "",
+        "expected": 400
+      },
+      {
+        "op": "eq",
+        "type": "json_path",
+        "target": "$.status",
+        "expected": "fail"
+      }
+    ],
+    "extract": {},
+    "static_context": {}
+  },
+  {
+    "name": "Login with missing username field",
+    "description": "Verifies login fails when username field is omitted",
+    "scenario_type": "negative",
+    "method": "post",
+    "path": "/users/v1/login",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "password": "pass1"
+    },
+    "path_params": {},
+    "query_params": {},
+    "expected_status": 400,
+    "assertions": [
+      {
+        "op": "",
+        "type": "status_eq",
+        "target": "",
+        "expected": 400
+      }
+    ],
+    "extract": {},
+    "static_context": {}
+  },
+  {
+    "name": "Login with missing password field",
+    "description": "Verifies login fails when password field is omitted",
+    "scenario_type": "negative",
+    "method": "post",
+    "path": "/users/v1/login",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "username": "name1"
+    },
+    "path_params": {},
+    "query_params": {},
+    "expected_status": 400,
+    "assertions": [
+      {
+        "op": "",
+        "type": "status_eq",
+        "target": "",
+        "expected": 400
+      }
+    ],
+    "extract": {},
+    "static_context": {}
+  },
+  {
+    "name": "Register user with valid data",
+    "description": "Verifies user can register when providing valid email, password, and username",
+    "scenario_type": "positive",
+    "method": "post",
+    "path": "/users/v1/register",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "email": "validuser@example.com",
+      "password": "validPass1",
+      "username": "validuser"
+    },
+    "path_params": {},
+    "query_params": {},
+    "expected_status": 200,
+    "assertions": [
+      {
+        "op": "",
+        "type": "status_eq",
+        "target": "",
+        "expected": 200
+      },
+      {
+        "op": "exists",
+        "type": "json_path",
+        "target": "$.status"
+      }
+    ],
+    "extract": {},
+    "static_context": {
+      "USER_A_ID": "validuser"
+    }
+  },
+  {
+    "name": "Register user with minimal valid fields",
+    "description": "Verifies user can register when providing only required fields (email, password, username)",
+    "scenario_type": "positive",
+    "method": "post",
+    "path": "/users/v1/register",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "email": "minimaluser@example.com",
+      "password": "pass123",
+      "username": "minimaluser"
+    },
+    "path_params": {},
+    "query_params": {},
+    "expected_status": 200,
+    "assertions": [
+      {
+        "op": "",
+        "type": "status_eq",
+        "target": "",
+        "expected": 200
+      },
+      {
+        "op": "exists",
+        "type": "json_path",
+        "target": "$.message"
+      }
+    ],
+    "extract": {},
+    "static_context": {
+      "USER_B_ID": "minimaluser"
+    }
+  },
+  {
+    "name": "Fail on missing email field",
+    "description": "Verifies the API returns 400 when the required email field is omitted",
+    "scenario_type": "negative",
+    "method": "post",
+    "path": "/users/v1/register",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "password": "pass1",
+      "username": "nouser"
+    },
+    "path_params": {},
+    "query_params": {},
+    "expected_status": 400,
+    "assertions": [
+      {
+        "op": "",
+        "type": "status_eq",
+        "target": "",
+        "expected": 400
+      }
+    ],
+    "extract": {},
+    "static_context": {}
+  },
+  {
+    "name": "Fail on missing password field",
+    "description": "Verifies the API returns 400 when the required password field is omitted",
+    "scenario_type": "negative",
+    "method": "post",
+    "path": "/users/v1/register",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "email": "nopass@example.com",
+      "username": "nopassuser"
+    },
+    "path_params": {},
+    "query_params": {},
+    "expected_status": 400,
+    "assertions": [
+      {
+        "op": "",
+        "type": "status_eq",
+        "target": "",
+        "expected": 400
+      }
+    ],
+    "extract": {},
+    "static_context": {}
+  },
+  {
+    "name": "Fail on missing username field",
+    "description": "Verifies the API returns 400 when the required username field is omitted",
+    "scenario_type": "negative",
+    "method": "post",
+    "path": "/users/v1/register",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "email": "nousername@example.com",
+      "password": "pass1"
+    },
+    "path_params": {},
+    "query_params": {},
+    "expected_status": 400,
+    "assertions": [
+      {
+        "op": "",
+        "type": "status_eq",
+        "target": "",
+        "expected": 400
+      }
+    ],
+    "extract": {},
+    "static_context": {}
+  },
+  {
+    "name": "Fail on empty request body",
+    "description": "Verifies the API returns 400 when the request body is empty",
+    "scenario_type": "negative",
+    "method": "post",
+    "path": "/users/v1/register",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {},
+    "path_params": {},
+    "query_params": {},
+    "expected_status": 400,
+    "assertions": [
+      {
+        "op": "",
+        "type": "status_eq",
+        "target": "",
+        "expected": 400
+      }
+    ],
+    "extract": {},
+    "static_context": {}
+  }
+]

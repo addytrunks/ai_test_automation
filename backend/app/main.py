@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-import sys
 import logging
+import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 

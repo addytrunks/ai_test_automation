@@ -88,11 +88,12 @@ def build_generation_prompt(
     prompt += "- NEVER use hardcoded token strings or UUID placeholders. "
     prompt += "Use ONLY these template variables: {{USER_A_TOKEN}}, {{USER_B_TOKEN}}, "
     prompt += "{{USER_A_ID}}, {{USER_B_ID}}, {{TARGET_RESOURCE_ID}}.\n"
-    prompt += "- If the endpoint requires authentication, emit setup tests first. "
-    prompt += "Setup tests MUST include 'method' and 'path' fields pointing to the actual "
-    prompt += "auth endpoint (e.g. POST /users/v1/login), NOT the target endpoint.\n"
-    prompt += "- If a registration endpoint exists, generate a Register setup test BEFORE "
-    prompt += "the Login setup test. Never assume users already exist.\n"
-    prompt += "- Login setup tests must have an 'extract' field that captures tokens from the response.\n"
+    if "setup" in effective_scenarios:
+        prompt += "- If the endpoint requires authentication, emit setup tests first. "
+        prompt += "Setup tests MUST include 'method' and 'path' fields pointing to the actual "
+        prompt += "auth endpoint (e.g. POST /users/v1/login), NOT the target endpoint.\n"
+        prompt += "- If a registration endpoint exists, generate a Register setup test BEFORE "
+        prompt += "the Login setup test. Never assume users already exist.\n"
+        prompt += "- Login setup tests must have an 'extract' field that captures tokens from the response.\n"
 
     return prompt
