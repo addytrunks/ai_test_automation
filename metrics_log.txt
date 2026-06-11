@@ -10,3 +10,93 @@ Generation time (seconds):
 Total Time: 602.65s
 Notes: Automated metrics extraction run (Generation Time ONLY).
 --------------------------------------------------
+Generation Time (Endpoint post /users/v1/register, baseline): 43.70 seconds
+Generation Time (Endpoint post /users/v1/login, baseline): 40.85 seconds
+Generation Time (Endpoint get /users/v1/{username}, baseline): 39.49 seconds
+Generation Time (Endpoint put /users/v1/{username}/email, baseline): 40.09 seconds
+Generation Time (Endpoint put /users/v1/{username}/password, baseline): 51.73 seconds
+Generation Time (Endpoint get /users/v1/{username}, baseline): 25.19 seconds
+Generation Time (Endpoint put /users/v1/{username}/email, depth 1): 93.72 seconds
+Generation Time (Endpoint put /users/v1/{username}/password, depth 1): 9.08 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 1): 35.06 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 1): 10.01 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 1): 10.58 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 1): 93.75 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 2): 10.45 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 2): 4.46 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 2): 36.64 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 2): 25.91 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 2): 22.95 seconds
+Generation Time (Endpoint put /users/v1/{username}/email, depth 2): 42.57 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 2): 34.96 seconds
+Generation Time (Endpoint put /users/v1/{username}/password, depth 2): 39.75 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 2): 33.48 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 2): 19.06 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 2): 32.89 seconds
+Generation Time (Endpoint post /users/v1/login, baseline): 20.66 seconds
+Generation Time (Endpoint post /users/v1/register, baseline): 16.25 seconds
+Generation Time (Endpoint get /users/v1/{username}, baseline): 39.04 seconds
+Generation Time (Endpoint put /users/v1/{username}/email, baseline): 31.36 seconds
+Generation Time (Endpoint put /users/v1/{username}/password, baseline): 33.56 seconds
+Generation Time (Endpoint put /users/v1/{username}/email, baseline): 39.52 seconds
+Generation Time (Endpoint put /users/v1/{username}/password, baseline): 41.19 seconds
+Generation Time (Endpoint get /users/v1/{username}, baseline): 24.82 seconds
+Generation Time (Endpoint post /users/v1/login, baseline): 41.41 seconds
+Generation Time (Endpoint post /users/v1/register, baseline): 52.35 seconds
+Generation Time (Endpoint post /users/v1/register, depth 1): 17.97 seconds
+Generation Time (Endpoint post /users/v1/register, depth 1): 38.70 seconds
+Generation Time (Endpoint post /users/v1/register, depth 1): 13.84 seconds
+Generation Time (Endpoint post /users/v1/register, depth 1): 28.50 seconds
+Generation Time (Endpoint post /users/v1/login, depth 1): 44.30 seconds
+Generation Time (Endpoint post /users/v1/login, depth 1): 17.24 seconds
+Generation Time (Endpoint post /users/v1/login, depth 1): 19.68 seconds
+Generation Time (Endpoint post /users/v1/login, depth 1): 27.55 seconds
+Generation Time (Endpoint post /users/v1/login, depth 1): 29.94 seconds
+Generation Time (Endpoint put /users/v1/{username}/password, baseline): 23.97 seconds
+Generation Time (Endpoint post /users/v1/login, baseline): 16.03 seconds
+Generation Time (Endpoint post /users/v1/register, baseline): 30.90 seconds
+Generation Time (Endpoint put /users/v1/{username}/email, baseline): 27.22 seconds
+Generation Time (Endpoint get /users/v1/{username}, baseline): 21.14 seconds
+Generation Time (Endpoint put /users/v1/{username}/email, baseline): 43.07 seconds
+Generation Time (Endpoint put /users/v1/{username}/password, baseline): 50.20 seconds
+Generation Time (Endpoint get /users/v1/{username}, baseline): 14.86 seconds
+Generation Time (Endpoint post /users/v1/login, baseline): 18.58 seconds
+Generation Time (Endpoint post /users/v1/register, baseline): 30.73 seconds
+Generation Time (Endpoint post /users/v1/login, depth 1): 12.96 seconds
+Generation Time (Endpoint post /users/v1/login, depth 1): 10.78 seconds
+Generation Time (Endpoint put /users/v1/{username}/email, depth 1): 10.12 seconds
+Generation Time (Endpoint put /users/v1/{username}/email, depth 1): 30.48 seconds
+Generation Time (Endpoint put /users/v1/{username}/password, depth 1): 35.05 seconds
+Generation Time (Endpoint put /users/v1/{username}/password, depth 1): 31.03 seconds
+Generation Time (Endpoint put /users/v1/{username}/password, depth 1): 38.13 seconds
+Generation Time (Endpoint post /users/v1/register, depth 1): 4.97 seconds
+Generation Time (Endpoint post /users/v1/login, depth 1): 5.64 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 1): 24.77 seconds
+Generation Time (Endpoint post /users/v1/register, depth 2): 11.83 seconds
+Generation Time (Endpoint post /users/v1/login, depth 2): 13.01 seconds
+Generation Time (Endpoint post /users/v1/login, depth 2): 26.86 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 2): 36.24 seconds
+Generation Time (Endpoint put /users/v1/{username}/email, depth 2): 13.02 seconds
+Generation Time (Endpoint put /users/v1/{username}/password, depth 2): 25.19 seconds
+Generation Time (Endpoint put /users/v1/{username}/email, depth 2): 17.66 seconds
+Generation Time (Endpoint put /users/v1/{username}/password, depth 2): 26.83 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 1): 14.50 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 1): 40.06 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 1): 12.64 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 1): 21.70 seconds
+Generation Time (Endpoint post /users/v1/login, depth 1): 14.72 seconds
+Generation Time (Endpoint post /users/v1/login, depth 1): 15.25 seconds
+Generation Time (Endpoint post /users/v1/login, depth 1): 17.47 seconds
+Generation Time (Endpoint post /users/v1/register, depth 1): 16.21 seconds
+Generation Time (Endpoint put /users/v1/{username}/email, depth 1): 23.38 seconds
+Generation Time (Endpoint put /users/v1/{username}/email, depth 1): 30.66 seconds
+Generation Time (Endpoint post /users/v1/register, depth 2): 10.65 seconds
+Generation Time (Endpoint post /users/v1/register, depth 2): 9.83 seconds
+Generation Time (Endpoint post /users/v1/login, depth 2): 4.30 seconds
+Generation Time (Endpoint post /users/v1/login, depth 2): 20.02 seconds
+Generation Time (Endpoint post /users/v1/login, depth 2): 14.54 seconds
+Generation Time (Endpoint post /users/v1/login, depth 2): 14.83 seconds
+Generation Time (Endpoint post /users/v1/login, depth 2): 25.64 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 2): 18.15 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 2): 20.05 seconds
+Generation Time (Endpoint get /users/v1/{username}, depth 2): 29.59 seconds

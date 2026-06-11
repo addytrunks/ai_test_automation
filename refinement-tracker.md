@@ -34,11 +34,15 @@ This is a living document to track all pending refinements, prompt adjustments, 
 
 ### 3. Execution Engine & Variables (Week 4 Focus)
 
-- [ ] **Execute Setup Tests Sequentially First**
+- [x] **Execute Setup Tests Sequentially First**
   * **Requirement:** The executor must run all tests with `scenario_type: "setup"` *first*, extract their responses, populate the **Runtime Context**, and then execute the remaining tests in parallel or in sequence using the substituted variables.
 
-- [ ] **Regex String Substitutions**
+- [x] **Regex String Substitutions**
   * **Requirement:** Implement a regex-based replacement block in `executor.py` that replaces double-brace keys (like `{{USER_A_TOKEN}}`) inside request paths, query strings, headers, and JSON bodies.
+
+- [ ] **Dynamic Actor Configuration (API-Agnostic Contexts)**
+  * **Requirement:** Move away from hardcoded actors (User A/User B) in the prompt to support API-agnostic security testing (like BFLA with Admin tokens).
+  * **Fix:** Allow users to define actors per test suite. Inject these dynamically into the `SYSTEM_PROMPT` so the LLM generates setups only for requested contexts (e.g., `{{USER_1_TOKEN}}`, `{{ADMIN_TOKEN}}`).
 
 ---
 
