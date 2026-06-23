@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 GapScenarioType = Literal[
     "auth_bypass", "bola", "injection", "boundary", "mass_assignment",
-    "rate_limiting", "negative", "positive",
+    "negative", "positive",
 ]
 
 
@@ -52,7 +52,7 @@ MEDIUM severity gaps.
 
 Rules:
 - Each gap MUST include scenario_type from: auth_bypass, bola, injection, boundary, \
-mass_assignment, rate_limiting, negative, positive.
+mass_assignment, negative, positive.
 - Do NOT report gaps for scenario types already in scenario_types_covered.
 - A test with status passed/failed/error means that scenario_type WAS executed — \
 do not request duplicate tests of the same type on the same endpoint.
@@ -62,8 +62,7 @@ the failure may indicate a vulnerability, not a missing test.
 were not in the current run batch.
 
 Severity guide:
-- HIGH: secured endpoint with path params has no bola/auth_bypass; login POST has \
-no rate_limiting; endpoint has zero tests.
+- HIGH: secured endpoint with path params has no bola/auth_bypass; endpoint has zero tests.
 - MEDIUM: string path params lack injection; POST body endpoints lack mass_assignment.
 - LOW: skip — return only HIGH and MEDIUM."""
 
@@ -178,7 +177,7 @@ Endpoints and their test outcomes:
 {json.dumps(endpoint_summaries, indent=2, default=str)}
 
 For each endpoint, check missing scenario types among:
-auth_bypass, bola, injection, boundary, mass_assignment, rate_limiting.
+auth_bypass, bola, injection, boundary, mass_assignment.
 
 Example: endpoint has bola test with status=failed and response_status=200 → BOLA is \
 COVERED (do not report a BOLA gap).

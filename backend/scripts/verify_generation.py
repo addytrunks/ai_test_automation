@@ -17,7 +17,6 @@ from app.generator.schemas import TestListResult
 from app.generator.service import SYSTEM_PROMPT
 from app.llm.client import generate_structured
 
-
 VAMPI_OPENAPI_URLS = [
     "http://localhost:5001/openapi.json",
     "http://localhost:5001/apispec_1.json",

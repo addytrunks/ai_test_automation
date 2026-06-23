@@ -20,7 +20,7 @@ MIN_TESTS_PER_SCENARIO = 2
 
 _VALID_SCENARIO_TAGS = frozenset({
     "positive", "negative", "boundary", "bola", "auth_bypass", "injection",
-    "mass_assignment", "rate_limiting", "setup",
+    "mass_assignment", "setup",
 })
 
 
@@ -35,8 +35,6 @@ def infer_scenario_type(text: str) -> str:
         return "bola"
     if "mass assignment" in desc or "mass_assignment" in desc or "privilege" in desc:
         return "mass_assignment"
-    if "rate limit" in desc or "rate_limit" in desc or "brute" in desc:
-        return "rate_limiting"
     if "auth" in desc or "bypass" in desc or "unauthenticated" in desc:
         return "auth_bypass"
     if "injection" in desc or "sqli" in desc or "xss" in desc or "nosql" in desc:

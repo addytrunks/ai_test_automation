@@ -112,14 +112,6 @@ def _filter_scenarios_for_endpoint(ep: Endpoint, scenarios: list[str]) -> list[s
         if s == "boundary" and not _ep_has_inputs(ep):
             logger.info("  ↳ Stripped '%s' — endpoint has no inputs for boundary testing", s)
             continue
-        if s == "rate_limiting":
-            path_lower = ep.path.lower()
-            is_auth_post = ep.method.lower() == "post" and any(
-                k in path_lower for k in ["login", "auth", "token", "signin", "sessions"]
-            )
-            if not is_auth_post:
-                logger.info("  ↳ Stripped '%s' — endpoint is not a login/auth POST", s)
-                continue
         filtered.append(s)
     return filtered
 
@@ -136,7 +128,7 @@ SYSTEM_PROMPT = (
     "Non-setup tests inherit method/path from the target endpoint unless scenario_type is setup.\n\n"
 
     "Valid scenario_type values: positive, negative, boundary, bola, auth_bypass, injection, "
-    "mass_assignment, rate_limiting, setup.\n\n"
+    "mass_assignment, setup.\n\n"
 
     "ASSERTION SCHEMA (all assertions require 'type'):\n"
     "- status_eq: {type, expected: int}\n"
