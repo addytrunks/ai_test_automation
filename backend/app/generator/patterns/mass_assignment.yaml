@@ -1,35 +1,42 @@
-description: "Generate mass assignment tests that attempt to set privileged or read-only fields (e.g. admin, role, is_admin, balance) by injecting extra properties into request bodies. A vulnerable API will bind all incoming fields to the object without filtering, allowing privilege escalation. Tests send valid requests with additional unauthorized fields and assert those fields are NOT reflected in the response or applied to the resource. ALWAYS use {{USER_A_TOKEN}} for the Authorization header — never hardcode token strings."
+description: >
+  Generate mass assignment tests injecting privileged fields (admin, role, balance)
+  into request bodies. A secure API ignores extra fields; a vulnerable API binds them.
+  Use status_in plus body_not_contains for fields you injected. Use Bearer {{USER_A_TOKEN}}
+  when the endpoint requires authentication.
+anti_patterns:
+  - "Do NOT hardcode token strings — use Bearer {{USER_A_TOKEN}}"
 examples:
-  - input: "Endpoint path: /users/register, method: POST, params: none, body: {username: string, password: string}"
+  - input: "Endpoint path: /users/register, method: POST, body: {username, password, email}"
     output:
-      name: "Mass assignment to escalate privilege via admin field on registration"
-      description: "Verifies the registration endpoint ignores the admin field injected alongside valid registration data — a vulnerable API will create the user with admin privileges"
+      name: "Mass assignment via admin field on registration"
+      description: "Injects admin:true alongside valid registration data"
       scenario_type: "mass_assignment"
-      body: {"username": "attacker", "password": "password123", "admin": true}
+      headers: {"Content-Type": "application/json"}
+      body: {"username": "attacker", "password": "password123", "email": "a@test.com", "admin": true}
       expected_status: 200
       assertions:
         - {type: "status_in", expected: [200, 201]}
         - {type: "body_not_contains", expected: "\"admin\": true"}
-        - {type: "body_not_contains", expected: "\"admin\":true"}
-  - input: "Endpoint path: /users/{id}, method: PUT, params: [{name: id, in: path, type: string}], body: {name: string, email: string}"
+  - input: "Endpoint path: /users/register, method: POST, body: {username, password, email}"
+    output:
+      name: "Mass assignment via admin string on registration"
+      description: "Injects admin as string '1' — some APIs accept string booleans"
+      scenario_type: "mass_assignment"
+      headers: {"Content-Type": "application/json"}
+      body: {"username": "attacker2", "password": "password123", "email": "b@test.com", "admin": "1"}
+      expected_status: 200
+      assertions:
+        - {type: "status_in", expected: [200, 201]}
+        - {type: "body_not_contains", expected: "\"admin\""}
+  - input: "Endpoint path: /users/{id}, method: PUT, body: {name, email}, security: Bearer"
     output:
       name: "Mass assignment to set role field during profile update"
-      description: "Verifies the profile update endpoint strips unauthorized fields like role — a vulnerable API will update the user's role to the injected value"
+      description: "Authenticated user injects unauthorized role field in update body"
       scenario_type: "mass_assignment"
-      headers: {"Authorization": "Bearer {{USER_A_TOKEN}}"}
+      headers: {"Authorization": "Bearer {{USER_A_TOKEN}}", "Content-Type": "application/json"}
       path_params: {"id": "{{USER_A_ID}}"}
       body: {"name": "Legit Name", "email": "legit@test.com", "role": "admin"}
       expected_status: 200
       assertions:
         - {type: "status_in", expected: [200, 204]}
         - {type: "body_not_contains", expected: "\"role\": \"admin\""}
-  - input: "Endpoint path: /users/register, method: POST, params: none, body: {username: string, password: string}"
-    output:
-      name: "Mass assignment to set credit balance during registration"
-      description: "Verifies the registration endpoint ignores financial fields injected in the body — a vulnerable API will create the account with the attacker-supplied balance"
-      scenario_type: "mass_assignment"
-      body: {"username": "attacker2", "password": "password123", "credit": 999999}
-      expected_status: 200
-      assertions:
-        - {type: "status_in", expected: [200, 201]}
-        - {type: "body_not_contains", expected: "999999"}

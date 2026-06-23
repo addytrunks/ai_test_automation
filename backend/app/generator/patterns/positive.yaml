@@ -1,21 +1,21 @@
 description: "Generate standard positive functional tests with valid inputs that verify the endpoint works correctly under normal conditions."
 examples:
-  - input: "Endpoint path: /users, method: POST, params: none, body: {email: string, age: int}"
+  - input: "Endpoint path: /users, method: POST, body: {email: string, age: int}"
     output:
       name: "Create user with valid data"
       description: "Verifies user can be created when providing valid email and age"
       scenario_type: "positive"
+      headers: {"Content-Type": "application/json"}
       body: {"email": "test@example.com", "age": 25}
       expected_status: 201
       assertions:
         - {type: "status_eq", expected: 201}
         - {type: "json_path", target: "$.id", op: "exists"}
-  - input: "Endpoint path: /users, method: GET, params: none, body: none"
+  - input: "Endpoint path: /users, method: GET"
     output:
       name: "List all users successfully"
-      description: "Verifies the endpoint returns a list of users with valid structure"
+      description: "Verifies the endpoint returns a successful response"
       scenario_type: "positive"
       expected_status: 200
       assertions:
         - {type: "status_eq", expected: 200}
-        - {type: "header_eq", target: "Content-Type", expected: "application/json"}

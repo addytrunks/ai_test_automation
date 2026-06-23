@@ -1,34 +1,41 @@
-description: "Generate BOLA (Broken Object Level Authorization) tests that attempt to access or modify resources belonging to other users by manipulating resource IDs. Tests must include a valid Authorization header for User A while targeting a resource ID belonging to User B — this is the defining characteristic of BOLA: authenticated but unauthorized. ALWAYS use {{USER_A_TOKEN}} and {{USER_B_ID}} template variables — never hardcode token strings or UUID placeholders."
+description: >
+  Generate BOLA (Broken Object Level Authorization) tests. User A is authenticated
+  but attempts to access User B's resource via path param substitution. ALWAYS use
+  {{USER_A_TOKEN}} in Authorization and {{USER_B_ID}} or {{TARGET_RESOURCE_ID}}
+  for the foreign resource. A secure API returns 401/403; a vulnerable API may
+  return 200 — use status_in and avoid asserting body fields not in the spec.
+anti_patterns:
+  - "Do NOT hardcode token strings or UUID placeholders"
+  - "Do NOT test BOLA without an Authorization header — that is auth_bypass, not BOLA"
 examples:
-  - input: "Endpoint path: /users/{id}, method: GET, params: [{name: id, in: path, type: string}], body: none"
+  - input: "Endpoint path: /users/{id}, method: GET, params: [{name: id, in: path}], security: Bearer"
     output:
-      name: "Access another user's profile while authenticated as a different user"
-      description: "Verifies the API prevents User A from reading User B's profile by substituting a different user ID in the path, even with a valid token"
+      name: "Read another user's profile while authenticated as User A"
+      description: "User A token accesses User B's ID in the path — expects authorization denial on a secure API"
       scenario_type: "bola"
-      headers: {"Authorization": "Bearer {{USER_A_TOKEN}}"}
+      headers: {"Authorization": "Bearer {{USER_A_TOKEN}}", "Content-Type": "application/json"}
       path_params: {"id": "{{USER_B_ID}}"}
       expected_status: 403
       assertions:
-        - {type: "status_eq", expected: 403}
-        - {type: "body_not_contains", expected: "{{USER_B_ID}}"}
-  - input: "Endpoint path: /users/{id}, method: PUT, params: [{name: id, in: path, type: string}], body: {name: string}"
+        - {type: "status_in", expected: [401, 403]}
+  - input: "Endpoint path: /users/{username}, method: PUT, body: {email: string}, security: Bearer"
     output:
-      name: "Modify another user's data while authenticated as a different user"
-      description: "Verifies the API prevents User A from updating User B's profile by substituting a different user ID in the path, even with a valid token"
+      name: "Modify another user's email while authenticated as User A"
+      description: "User A attempts to change User B's email via path param mismatch"
       scenario_type: "bola"
-      headers: {"Authorization": "Bearer {{USER_A_TOKEN}}"}
-      path_params: {"id": "{{USER_B_ID}}"}
-      body: {"name": "Hacked Name"}
+      headers: {"Authorization": "Bearer {{USER_A_TOKEN}}", "Content-Type": "application/json"}
+      path_params: {"username": "{{USER_B_ID}}"}
+      body: {"email": "hijacked@evil.com"}
       expected_status: 403
       assertions:
-        - {type: "status_eq", expected: 403}
-  - input: "Endpoint path: /books/{id}, method: GET, params: [{name: id, in: path, type: integer}], body: none"
+        - {type: "status_in", expected: [401, 403]}
+  - input: "Endpoint path: /books/{book_title}, method: GET, security: Bearer"
     output:
-      name: "Access another user's private resource by iterating integer ID"
-      description: "Verifies the API rejects access to a resource owned by a different user when an authenticated user iterates through sequential integer IDs"
+      name: "Access another user's private book by resource ID"
+      description: "Authenticated user attempts to read a book resource they do not own"
       scenario_type: "bola"
       headers: {"Authorization": "Bearer {{USER_A_TOKEN}}"}
-      path_params: {"id": "{{TARGET_RESOURCE_ID}}"}
+      path_params: {"book_title": "{{TARGET_RESOURCE_ID}}"}
       expected_status: 403
       assertions:
-        - {type: "status_eq", expected: 403}
+        - {type: "status_in", expected: [401, 403]}

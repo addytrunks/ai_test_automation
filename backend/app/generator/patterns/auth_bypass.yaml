@@ -1,6 +1,12 @@
-description: "Generate authentication bypass tests that attempt to access endpoints without valid credentials or with manipulated tokens."
+description: >
+  Generate authentication bypass tests. Distinguish three cases: (1) no Authorization
+  header at all, (2) malformed/invalid Bearer token, (3) wrong auth scheme. Use
+  status_eq or status_in for assertions — do not assert undocumented error message text.
+anti_patterns:
+  - "Do NOT omit Authorization when the test description says invalid/expired/malformed token"
+  - "Do NOT use {{USER_A_TOKEN}} unless testing cross-user token misuse"
 examples:
-  - input: "Endpoint path: /users, method: GET, params: none, body: none, security: Bearer token required"
+  - input: "Endpoint path: /users, method: GET, security: Bearer token required"
     output:
       name: "Access without auth token"
       description: "Verifies the endpoint rejects requests with no Authorization header"
@@ -9,13 +15,21 @@ examples:
       expected_status: 401
       assertions:
         - {type: "status_eq", expected: 401}
-        - {type: "body_contains", expected: "unauthorized"}
-  - input: "Endpoint path: /users, method: GET, params: none, body: none, security: Bearer token required"
+  - input: "Endpoint path: /users, method: GET, security: Bearer token required"
     output:
-      name: "Access with expired/invalid token"
-      description: "Verifies the endpoint rejects requests with a malformed JWT token"
+      name: "Access with malformed Bearer token"
+      description: "Verifies the endpoint rejects a deliberately invalid token — header MUST be present with a bad value"
       scenario_type: "auth_bypass"
-      headers: {"Authorization": "Bearer invalid.token.here"}
+      headers: {"Authorization": "Bearer invalid_token_xyz"}
       expected_status: 401
       assertions:
         - {type: "status_eq", expected: 401}
+  - input: "Endpoint path: /users, method: GET, security: Bearer token required"
+    output:
+      name: "Access with wrong auth scheme"
+      description: "Verifies the endpoint rejects Basic auth when Bearer is required"
+      scenario_type: "auth_bypass"
+      headers: {"Authorization": "Basic dXNlcjpwYXNz"}
+      expected_status: 401
+      assertions:
+        - {type: "status_in", expected: [401, 403]}

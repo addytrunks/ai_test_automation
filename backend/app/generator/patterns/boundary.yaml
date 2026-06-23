@@ -1,29 +1,32 @@
-description: "Generate boundary value tests that probe edge cases like extremely large values, empty strings, minimum/maximum lengths, and special characters."
+description: "Generate boundary value tests probing edge cases — empty strings, zero values, max lengths, and oversized inputs."
 examples:
-  - input: "Endpoint path: /users, method: POST, params: none, body: {email: string, age: int}"
+  - input: "Endpoint path: /users, method: POST, body: {email: string, age: int}"
     output:
       name: "Boundary test with age zero"
-      description: "Verifies API behavior when age is set to the boundary value of 0"
+      description: "Verifies API behavior when age is set to 0"
       scenario_type: "boundary"
+      headers: {"Content-Type": "application/json"}
       body: {"email": "boundary@test.com", "age": 0}
       expected_status: 400
       assertions:
-        - {type: "status_eq", expected: 400}
-  - input: "Endpoint path: /users, method: POST, params: none, body: {email: string, age: int}"
+        - {type: "status_in", expected: [400, 422]}
+  - input: "Endpoint path: /users, method: POST, body: {email: string, age: int}"
     output:
       name: "Boundary test with extremely large age"
       description: "Verifies API behavior when age exceeds reasonable bounds"
       scenario_type: "boundary"
+      headers: {"Content-Type": "application/json"}
       body: {"email": "boundary@test.com", "age": 999999999}
       expected_status: 422
       assertions:
-        - {type: "status_eq", expected: 422}
-  - input: "Endpoint path: /users, method: POST, params: none, body: {name: string, email: string}"
+        - {type: "status_in", expected: [400, 422]}
+  - input: "Endpoint path: /users/{username}/email, method: PUT, body: {email: string}"
     output:
-      name: "Boundary test with empty name string"
-      description: "Verifies API handles an empty string for the name field"
+      name: "Boundary test with excessively long email"
+      description: "Probes ReDoS or validation limits with an oversized email string"
       scenario_type: "boundary"
-      body: {"name": "", "email": "empty@test.com"}
+      headers: {"Content-Type": "application/json"}
+      body: {"email": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@bbbbbbbbbbbbbbbbbbbbbbbbbbbb.com"}
       expected_status: 422
       assertions:
-        - {type: "status_eq", expected: 422}
+        - {type: "status_in", expected: [400, 422, 500]}

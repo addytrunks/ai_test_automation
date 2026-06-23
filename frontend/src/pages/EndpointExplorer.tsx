@@ -120,6 +120,21 @@ const SCENARIO_RULES: ScenarioRule[] = [
       return any ? null : "No selected endpoint accepts a request body (POST/PUT/PATCH)"
     },
   },
+  {
+    value: "rate_limiting",
+    label: "Rate Limiting",
+    description: "Brute-force / rate-limit on login",
+    check: (eps) => {
+      const anyLogin = eps.some(
+        (ep) =>
+          ep.method === "post" &&
+          /login|auth|token|signin|sessions/i.test(ep.path),
+      )
+      return anyLogin
+        ? null
+        : "No selected endpoint is a login/auth POST endpoint"
+    },
+  },
 ]
 
 export default function EndpointExplorer() {
@@ -306,11 +321,10 @@ export default function EndpointExplorer() {
                     <tr
                       key={ep.id}
                       id={`endpoint-${ep.id}`}
-                      className={`border-b last:border-b-0 transition-colors cursor-pointer ${
-                        selectedIds.has(ep.id)
+                      className={`border-b last:border-b-0 transition-colors cursor-pointer ${selectedIds.has(ep.id)
                           ? "bg-blue-50/60"
                           : "hover:bg-slate-50"
-                      }`}
+                        }`}
                       onClick={() => toggleEndpoint(ep.id)}
                     >
                       <td className="px-4 py-3">
@@ -368,13 +382,12 @@ export default function EndpointExplorer() {
                         <label
                           key={scenario.value}
                           title={scenario.disabledReason ?? undefined}
-                          className={`flex items-start gap-2 rounded-lg border p-3 transition-colors ${
-                            isDisabled
+                          className={`flex items-start gap-2 rounded-lg border p-3 transition-colors ${isDisabled
                               ? "border-slate-100 bg-slate-50/50 cursor-not-allowed opacity-50"
                               : selectedScenarios.has(scenario.value)
-                              ? "border-slate-900 bg-slate-50 cursor-pointer"
-                              : "border-slate-200 hover:border-slate-300 cursor-pointer"
-                          }`}
+                                ? "border-slate-900 bg-slate-50 cursor-pointer"
+                                : "border-slate-200 hover:border-slate-300 cursor-pointer"
+                            }`}
                         >
                           <input
                             type="checkbox"

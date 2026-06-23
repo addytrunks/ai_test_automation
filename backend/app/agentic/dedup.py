@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import uuid
 from typing import Any
 
@@ -17,11 +18,25 @@ from app.models import CoverageGap, Test
 MIN_TESTS_PER_SCENARIO = 2
 
 
+_VALID_SCENARIO_TAGS = frozenset({
+    "positive", "negative", "boundary", "bola", "auth_bypass", "injection",
+    "mass_assignment", "rate_limiting", "setup",
+})
+
+
 def infer_scenario_type(text: str) -> str:
     """Map a gap description to a scenario type for coverage matching."""
+    tagged = re.match(r"^\[(\w+)\]\s", text)
+    if tagged and tagged.group(1) in _VALID_SCENARIO_TAGS:
+        return tagged.group(1)
+
     desc = text.lower()
     if "bola" in desc or "idor" in desc:
         return "bola"
+    if "mass assignment" in desc or "mass_assignment" in desc or "privilege" in desc:
+        return "mass_assignment"
+    if "rate limit" in desc or "rate_limit" in desc or "brute" in desc:
+        return "rate_limiting"
     if "auth" in desc or "bypass" in desc or "unauthenticated" in desc:
         return "auth_bypass"
     if "injection" in desc or "sqli" in desc or "xss" in desc or "nosql" in desc:

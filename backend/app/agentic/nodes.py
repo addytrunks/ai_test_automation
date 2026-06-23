@@ -178,6 +178,7 @@ async def analyze_node(state: AgenticLoopState) -> dict[str, Any]:
                 "id": str(g.id),
                 "endpoint_id": str(g.endpoint_id),
                 "scenario_description": g.scenario_description,
+                "scenario_type": infer_scenario_type(g.scenario_description),
                 "severity": g.severity,
             }
             for g in gaps
@@ -216,8 +217,14 @@ async def generate_node(state: AgenticLoopState) -> dict[str, Any]:
     """
     from app.generator.prompts import build_generation_prompt
     from app.generator.schemas import TestListResult
-    from app.generator.service import SYSTEM_PROMPT
+    from app.generator.service import (
+        SYSTEM_PROMPT,
+        _endpoint_to_prompt_dict,
+        _ep_has_auth,
+        resolve_auth_endpoints,
+    )
     from app.llm.client import generate_structured_with_usage
+    from app.models import TestSuite
 
     session_factory = _get_session_factory()
     suite_id = uuid.UUID(state["test_suite_id"])
@@ -236,6 +243,17 @@ async def generate_node(state: AgenticLoopState) -> dict[str, Any]:
     new_test_ids: list[str] = []
 
     async with session_factory() as db:
+        suite = await db.get(TestSuite, suite_id)
+        auth_endpoint = None
+        register_endpoint = None
+        if suite:
+            all_eps = list(
+                (
+                    await db.execute(select(Endpoint).where(Endpoint.spec_id == suite.spec_id))
+                ).scalars().all()
+            )
+            auth_endpoint, register_endpoint = resolve_auth_endpoints(all_eps)
+
         suite_tests = list(
             (
                 await db.execute(select(Test).where(Test.test_suite_id == suite_id))
@@ -266,23 +284,31 @@ async def generate_node(state: AgenticLoopState) -> dict[str, Any]:
                 )
                 continue
 
-            ep_dict = {
-                "method": endpoint.method,
-                "path": endpoint.path,
-                "summary": endpoint.summary,
-                "parameters": endpoint.parameters,
-                "request_body": endpoint.request_body,
-                "responses": endpoint.responses,
-                "security": endpoint.security,
-            }
+            ep_dict = _endpoint_to_prompt_dict(endpoint)
 
-            scenario = infer_scenario_type(gap["scenario_description"])
+            scenario = gap.get("scenario_type") or infer_scenario_type(
+                gap["scenario_description"]
+            )
+            needs_auth_context = scenario in (
+                "bola", "mass_assignment", "injection", "positive", "negative", "boundary"
+            ) and _ep_has_auth(endpoint)
 
-            prompt = build_generation_prompt(ep_dict, [scenario])
-            prompt += (
-                f"\n\nCRITICAL INSTRUCTION: You are generating tests SPECIFICALLY to "
-                f"address this coverage gap: '{gap['scenario_description']}'.\n"
-                f"DO NOT generate generic tests. DO NOT generate more than 2 highly targeted tests for this gap."
+            auth_dict = (
+                _endpoint_to_prompt_dict(auth_endpoint) if auth_endpoint else None
+            )
+            reg_dict = (
+                _endpoint_to_prompt_dict(register_endpoint) if register_endpoint else None
+            )
+
+            prompt = build_generation_prompt(
+                ep_dict,
+                [scenario],
+                auth_endpoint_dict=auth_dict,
+                register_endpoint_dict=reg_dict,
+                include_setup=False,
+                include_auth_context=needs_auth_context,
+                gap_mode=True,
+                gap_description=gap["scenario_description"],
             )
             # Track tests spawned specifically for THIS gap
             gap_test_ids: list[str] = []
@@ -292,7 +318,7 @@ async def generate_node(state: AgenticLoopState) -> dict[str, Any]:
                     prompt=prompt,
                     response_model=TestListResult,
                     system_prompt=SYSTEM_PROMPT,
-                    temperature=0.7,
+                    temperature=0.4,
                 )
                 tokens_this_step += tokens_used
 

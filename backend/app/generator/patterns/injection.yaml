@@ -1,44 +1,51 @@
-description: "Generate injection tests that attempt SQL injection, NoSQL injection, XSS, and command injection through user-controllable fields. IMPORTANT: The target API may be vulnerable and accept these payloads rather than reject them. Assertions must check for EITHER safe rejection (4xx) OR absence of execution evidence in the response — not assume rejection. Use status_in to allow the full range of possible responses, and add body_not_contains assertions to detect successful injection."
+description: >
+  Generate injection tests (SQL, NoSQL, XSS) through user-controllable fields.
+  The target API may reject (4xx) OR accept payloads on vulnerable endpoints.
+  Use status_in for flexible status codes and body_not_contains to detect reflection
+  or execution evidence. Prefer path/query injection when path params are strings.
+anti_patterns:
+  - "Do NOT assume the API always returns 422 — vulnerable APIs may return 200"
 examples:
-  - input: "Endpoint path: /users, method: POST, params: none, body: {email: string, name: string}"
+  - input: "Endpoint path: /users/v1/{username}, method: GET, params: [{name: username, in: path}]"
+    output:
+      name: "SQL injection via username path parameter"
+      description: "Probes SQL injection in a path parameter — safe APIs return 4xx; vulnerable APIs must not expose DB errors"
+      scenario_type: "injection"
+      path_params: {"username": "' OR '1'='1"}
+      expected_status: 404
+      assertions:
+        - {type: "status_in", expected: [400, 404, 422, 500]}
+        - {type: "body_not_contains", expected: "syntax error"}
+        - {type: "body_not_contains", expected: "SQL"}
+  - input: "Endpoint path: /users, method: POST, body: {email: string, name: string}"
     output:
       name: "SQL injection via name field"
-      description: "Verifies the API safely handles SQL injection payloads in the name field — a safe API rejects with 4xx; a vulnerable API may return 2xx but must not reflect execution side effects"
+      description: "Probes SQL injection in a JSON body field"
       scenario_type: "injection"
+      headers: {"Content-Type": "application/json"}
       body: {"email": "inject@test.com", "name": "'; DROP TABLE users; --"}
       expected_status: 422
       assertions:
         - {type: "status_in", expected: [400, 422, 500]}
-        - {type: "body_not_contains", expected: "syntax error"}
         - {type: "body_not_contains", expected: "DROP TABLE"}
-  - input: "Endpoint path: /search, method: GET, params: [{name: q, in: query, type: string}], body: none"
+  - input: "Endpoint path: /search, method: GET, params: [{name: q, in: query}]"
     output:
       name: "XSS injection via search query"
-      description: "Verifies the API sanitizes or rejects XSS payloads in query parameters — a vulnerable API may echo the payload back in the response body"
+      description: "Probes XSS payload in query string — response must not reflect raw script tags"
       scenario_type: "injection"
       query_params: {"q": "<script>alert('xss')</script>"}
       expected_status: 400
       assertions:
         - {type: "status_in", expected: [400, 422]}
         - {type: "body_not_contains", expected: "<script>"}
-  - input: "Endpoint path: /users, method: POST, params: none, body: {email: string, name: string}"
+  - input: "Endpoint path: /users/login, method: POST, body: {username: string, password: string}"
     output:
-      name: "NoSQL injection via name field"
-      description: "Verifies the API safely handles NoSQL operator injection — a vulnerable API may return a 200 with unintended data if the operator is evaluated"
+      name: "NoSQL injection in login credentials"
+      description: "Probes NoSQL operator injection — vulnerable APIs return 200 with a token"
       scenario_type: "injection"
-      body: {"email": "nosql@test.com", "name": "{\"$gt\": \"\"}"}
-      expected_status: 422
-      assertions:
-        - {type: "status_in", expected: [400, 422]}
-        - {type: "body_not_contains", expected: "$gt"}
-  - input: "Endpoint path: /users/login, method: POST, params: none, body: {username: string, password: string}"
-    output:
-      name: "NoSQL injection in login credentials to bypass authentication"
-      description: "Verifies the login endpoint rejects NoSQL operator payloads that could match any password — a vulnerable API returns 200 with a token, indicating auth bypass via injection"
-      scenario_type: "injection"
+      headers: {"Content-Type": "application/json"}
       body: {"username": "admin", "password": {"$gt": ""}}
       expected_status: 401
       assertions:
         - {type: "status_in", expected: [400, 401, 422]}
         - {type: "body_not_contains", expected: "auth_token"}
-        - {type: "body_not_contains", expected: "token"}

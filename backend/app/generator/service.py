@@ -14,6 +14,7 @@ import logging
 import re
 import time
 import uuid
+from typing import Any
 
 from fastapi import BackgroundTasks, HTTPException
 from sqlalchemy import select
@@ -56,6 +57,37 @@ def _ep_has_auth(ep: Endpoint) -> bool:
     return False
 
 
+def resolve_auth_endpoints(
+    all_endpoints: list[Endpoint],
+) -> tuple[Endpoint | None, Endpoint | None]:
+    """Heuristic: find unique login and optional register endpoints in a spec."""
+    login_candidates: list[Endpoint] = []
+    register_candidates: list[Endpoint] = []
+    for ep in all_endpoints:
+        if ep.method.lower() != "post":
+            continue
+        path_lower = ep.path.lower()
+        if any(k in path_lower for k in ["login", "auth", "token", "signin", "sessions"]):
+            login_candidates.append(ep)
+        if any(k in path_lower for k in ["register", "signup", "sign-up", "create-user"]):
+            register_candidates.append(ep)
+    auth_endpoint = login_candidates[0] if len(login_candidates) == 1 else None
+    register_endpoint = register_candidates[0] if len(register_candidates) == 1 else None
+    return auth_endpoint, register_endpoint
+
+
+def _endpoint_to_prompt_dict(ep: Endpoint) -> dict[str, Any]:
+    return {
+        "method": ep.method,
+        "path": ep.path,
+        "summary": ep.summary,
+        "parameters": ep.parameters,
+        "request_body": ep.request_body,
+        "responses": ep.responses,
+        "security": getattr(ep, "security", None),
+    }
+
+
 def _filter_scenarios_for_endpoint(ep: Endpoint, scenarios: list[str]) -> list[str]:
     """Remove scenarios that are structurally impossible for this endpoint.
 
@@ -80,6 +112,14 @@ def _filter_scenarios_for_endpoint(ep: Endpoint, scenarios: list[str]) -> list[s
         if s == "boundary" and not _ep_has_inputs(ep):
             logger.info("  ↳ Stripped '%s' — endpoint has no inputs for boundary testing", s)
             continue
+        if s == "rate_limiting":
+            path_lower = ep.path.lower()
+            is_auth_post = ep.method.lower() == "post" and any(
+                k in path_lower for k in ["login", "auth", "token", "signin", "sessions"]
+            )
+            if not is_auth_post:
+                logger.info("  ↳ Stripped '%s' — endpoint is not a login/auth POST", s)
+                continue
         filtered.append(s)
     return filtered
 
@@ -87,42 +127,52 @@ def _filter_scenarios_for_endpoint(ep: Endpoint, scenarios: list[str]) -> list[s
 # System prompt with explicit schema contract so the model knows
 # exactly what JSON structure, assertion types, and templating rules are valid.
 SYSTEM_PROMPT = (
-    "You are an expert API security and QA engineer. Generate test cases as a JSON object "
-    "with a 'tests' array. Each test must include: name (string), description (string), "
-    "scenario_type (string), expected_status (int), assertions (array of objects with 'type' "
-    "and 'expected' fields). Optional fields: method, path, path_params, query_params, headers, body, extract.\n\n"
+    "You are an expert API security and QA engineer. Return a JSON object with a 'tests' array.\n"
+    "Output skeleton: {\"tests\": [{\"name\": \"...\", \"description\": \"...\", "
+    "\"scenario_type\": \"...\", \"expected_status\": 200, \"assertions\": [...]}]}\n\n"
+
+    "Required per test: name, description, scenario_type, expected_status, assertions.\n"
+    "Optional: method, path, path_params, query_params, headers, body, extract, static_context.\n"
+    "Non-setup tests inherit method/path from the target endpoint unless scenario_type is setup.\n\n"
 
     "Valid scenario_type values: positive, negative, boundary, bola, auth_bypass, injection, "
-    "mass_assignment, setup.\n\n"
+    "mass_assignment, rate_limiting, setup.\n\n"
 
-    "Valid assertion types: status_eq, status_in, body_contains, body_not_contains, "
-    "json_path, header_eq, response_time_lt.\n\n"
+    "ASSERTION SCHEMA (all assertions require 'type'):\n"
+    "- status_eq: {type, expected: int}\n"
+    "- status_in: {type, expected: [int, ...]}\n"
+    "- json_path: {type, target: string, op: 'exists'|'eq', expected?: any}\n"
+    "- body_contains / body_not_contains: {type, expected: string}\n"
+    "- header_eq: {type, target: string, expected: string}\n"
+    "- response_time_lt: {type, expected: int}  (milliseconds)\n"
+    "MANDATORY: every test MUST include at least one status_eq or status_in assertion. "
+    "Prefer status assertions over json_path/body assertions unless the spec documents "
+    "response body fields. Do NOT assert exact error message text unless the spec defines it.\n\n"
 
-    "TEMPLATE VARIABLE CONTRACT — THIS IS MANDATORY:\n"
-    "Never use hardcoded placeholder strings for tokens, passwords, or dynamic resource IDs. "
-    "You MUST use double-brace template variables for any value that will be resolved at runtime. "
-    "The only valid token variables are: {{USER_A_TOKEN}}, {{USER_B_TOKEN}}. "
-    "The only valid ID variables are: {{USER_A_ID}}, {{USER_B_ID}}, {{TARGET_RESOURCE_ID}}. "
-    "Examples of FORBIDDEN values: 'valid.token.for.user.a', 'Bearer <token>', 'user-b-uuid-1234', "
-    "'current-user-uuid', 'some_token'. "
-    "If you use any of these forbidden patterns instead of the template variables above, "
-    "the output will be rejected.\n\n"
+    "TEMPLATE VARIABLE CONTRACT — MANDATORY:\n"
+    "Use double-brace variables for runtime-resolved values. "
+    "Tokens: {{USER_A_TOKEN}}, {{USER_B_TOKEN}}. "
+    "IDs: {{USER_A_ID}}, {{USER_B_ID}}, {{TARGET_RESOURCE_ID}}.\n"
+    "Authorization headers MUST use the Bearer prefix: "
+    "{\"Authorization\": \"Bearer {{USER_A_TOKEN}}\"}.\n"
+    "ID variable selection: USER_B_ID when the path param is a user identifier; "
+    "TARGET_RESOURCE_ID when the path param is an object/resource ID (book, order, etc.).\n"
+    "FORBIDDEN: 'valid.token.for.user.a', 'Bearer <token>', hardcoded UUIDs, 'some_token'.\n\n"
 
-    "SETUP TESTS — CRITICAL RULES:\n"
-    "1. Setup tests MUST include 'method' and 'path' fields pointing to the actual "
-    "registration or login endpoint (NOT the target endpoint being tested).\n"
-    "2. If the API has a registration endpoint, you MUST generate a Register setup test "
-    "BEFORE the Login setup test. Users may not exist yet — never assume they do.\n"
-    "3. The Login setup test must include an 'extract' field mapping template variable names "
-    "to JSONPath expressions that extract tokens from the response body. "
-    "Example: extract: {\"USER_A_TOKEN\": \"$.auth_token\"}.\n"
-    "4. The Register setup test should include a 'static_context' field mapping identifiers "
-    "used during registration. Example: static_context: {\"USER_A_ID\": \"test_user_a\"}.\n"
-    "5. Use the Authentication Endpoint details provided in the prompt to determine the "
-    "correct method, path, request body schema, and response token field name.\n"
-    "6. Setup tests must appear BEFORE any tests that use the tokens they produce.\n\n"
+    "AUTH BYPASS — distinguish missing vs invalid credentials:\n"
+    "- Missing auth test: omit Authorization header entirely (or headers: {}).\n"
+    "- Invalid token test: MUST include Authorization with a malformed value "
+    "(e.g. \"Bearer invalid_token_xyz\"). Never omit the header when testing invalid tokens.\n\n"
 
-    "Return ONLY the JSON object, no markdown, no explanation, no preamble."
+    "SETUP TESTS:\n"
+    "1. method/path must point to registration or login endpoints, NOT the target endpoint.\n"
+    "2. Register setup BEFORE login setup when a registration endpoint exists.\n"
+    "3. Login setup must include extract mapping tokens from the response "
+    "(read the token field name from the auth endpoint responses in the prompt).\n"
+    "4. Register setup should include static_context for USER_A_ID / USER_B_ID.\n"
+    "5. Setup tests must appear before tests that consume their tokens.\n\n"
+
+    "Return ONLY the JSON object. No markdown, no explanation."
 )
 
 
@@ -145,27 +195,11 @@ async def _generate_for_endpoint(
         endpoint.method, endpoint.path, ", ".join(scenarios),
     )
 
-    # Convert endpoint ORM object to dict for the prompt
-    ep_dict = {
-        "method": endpoint.method,
-        "path": endpoint.path,
-        "summary": endpoint.summary,
-        "parameters": endpoint.parameters,
-        "request_body": endpoint.request_body,
-        "responses": endpoint.responses,
-        "security": endpoint.security,
-    }
+    ep_dict = _endpoint_to_prompt_dict(endpoint)
 
     auth_ep_dict = None
     if auth_endpoint:
-        auth_ep_dict = {
-            "method": auth_endpoint.method,
-            "path": auth_endpoint.path,
-            "summary": auth_endpoint.summary,
-            "parameters": auth_endpoint.parameters,
-            "request_body": auth_endpoint.request_body,
-            "responses": auth_endpoint.responses,
-        }
+        auth_ep_dict = _endpoint_to_prompt_dict(auth_endpoint)
         logger.info(
             "[STEP 1/5] Auth endpoint detected: %s %s — injecting into prompt",
             auth_endpoint.method, auth_endpoint.path,
@@ -173,14 +207,7 @@ async def _generate_for_endpoint(
 
     reg_ep_dict = None
     if register_endpoint:
-        reg_ep_dict = {
-            "method": register_endpoint.method,
-            "path": register_endpoint.path,
-            "summary": register_endpoint.summary,
-            "parameters": register_endpoint.parameters,
-            "request_body": register_endpoint.request_body,
-            "responses": register_endpoint.responses,
-        }
+        reg_ep_dict = _endpoint_to_prompt_dict(register_endpoint)
         logger.info(
             "[STEP 1/5] Register endpoint detected: %s %s — injecting into prompt",
             register_endpoint.method, register_endpoint.path,
@@ -202,7 +229,7 @@ async def _generate_for_endpoint(
         prompt=prompt,
         response_model=TestListResult,
         system_prompt=SYSTEM_PROMPT,
-        temperature=0.7,
+        temperature=0.4,
     )
     generation_time = time.time() - start_time
     
@@ -248,6 +275,16 @@ async def _generate_for_endpoint(
                 t_data.name,
                 path_vars,
                 t_data.path_params,
+            )
+            continue
+
+        has_status_assertion = any(
+            a.type in ("status_eq", "status_in") for a in t_data.assertions
+        )
+        if not has_status_assertion:
+            logger.warning(
+                "Skipping test '%s': missing required status_eq or status_in assertion",
+                t_data.name,
             )
             continue
 
@@ -436,19 +473,15 @@ async def create_test_suite(
     auth_endpoint_id = None
     register_endpoint_id = None
     if requires_auth:
-        # Heuristic: find POST endpoints with login/auth/token in path
-        login_candidates = []
-        register_candidates = []
-        for ep in all_endpoints:
-            if ep.method.lower() == "post":
-                path_lower = ep.path.lower()
-                if any(k in path_lower for k in ["login", "auth", "token", "signin", "sessions"]):
-                    login_candidates.append(ep)
-                if any(k in path_lower for k in ["register", "signup", "sign-up", "create-user"]):
-                    register_candidates.append(ep)
-        
-        if len(login_candidates) == 1:
-            auth_endpoint_id = login_candidates[0].id
+        auth_ep, reg_ep = resolve_auth_endpoints(all_endpoints)
+        login_candidates = [
+            ep for ep in all_endpoints
+            if ep.method.lower() == "post"
+            and any(k in ep.path.lower() for k in ["login", "auth", "token", "signin", "sessions"])
+        ]
+
+        if auth_ep:
+            auth_endpoint_id = auth_ep.id
         else:
             raise HTTPException(
                 status_code=400,
@@ -457,9 +490,8 @@ async def create_test_suite(
                 "(Manual UI configuration pending in Week 4)."
             )
 
-        # Register endpoint is optional — if found, the LLM will generate register setup tests
-        if len(register_candidates) == 1:
-            register_endpoint_id = register_candidates[0].id
+        if reg_ep:
+            register_endpoint_id = reg_ep.id
 
     suite = TestSuite(
         project_id=project_id,

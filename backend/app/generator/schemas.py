@@ -41,7 +41,7 @@ class GeneratedTestSchema(BaseModel):
     description: str = Field(description="Detailed explanation of what the test verifies")
     scenario_type: Literal[
         "positive", "negative", "auth_bypass", "bola", "boundary", "injection",
-        "mass_assignment", "setup",
+        "mass_assignment", "rate_limiting", "setup",
     ]
 
     # Setup tests may target a different endpoint (e.g. POST /login)

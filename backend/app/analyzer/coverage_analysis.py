@@ -11,22 +11,33 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agentic.dedup import infer_scenario_type, should_skip_new_gap
+from app.agentic.dedup import should_skip_new_gap
 from app.llm.client import generate_structured_with_usage
 from app.models import CoverageGap, Endpoint, Run, Test, TestResult, TestSuite
 
 logger = logging.getLogger(__name__)
 
 
+GapScenarioType = Literal[
+    "auth_bypass", "bola", "injection", "boundary", "mass_assignment",
+    "rate_limiting", "negative", "positive",
+]
+
+
 class GapSchema(BaseModel):
     endpoint_path: str
-    scenario_description: str
+    scenario_type: GapScenarioType = Field(
+        description="The scenario type needed to fill this coverage gap"
+    )
+    scenario_description: str = Field(
+        description="Human-readable description of the untested scenario"
+    )
     severity: Literal["low", "medium", "high"]
 
 
@@ -35,21 +46,26 @@ class GapListSchema(BaseModel):
 
 
 COVERAGE_ANALYSIS_SYSTEM_PROMPT = """\
-You are a security-focused API test coverage analyst. Given a set of API \
-endpoints and their actual test results, identify gaps in test coverage. \
-Focus on security-critical scenarios: BOLA/IDOR, authentication bypass, \
-privilege escalation, injection, and boundary conditions. Return only \
-HIGH and MEDIUM severity gaps.
+You are a security-focused API test coverage analyst. Given API endpoints and \
+their actual test results, identify missing test coverage. Return only HIGH and \
+MEDIUM severity gaps.
 
 Rules:
-- Do NOT report gaps for scenario types already listed under scenario_types_covered.
-- If a test has status passed/failed/error, that scenario IS covered — do not \
-ask for duplicate tests of the same scenario type on the same endpoint.
-- A FAILED test means the scenario was executed; only report a gap if a \
-DIFFERENT scenario type is still missing (not more tests of the same type).
-- Tests with result_source prior_run were not re-executed this iteration but \
-have valid results — treat them as covered. Never report gaps solely because \
-a test was not in the current run batch."""
+- Each gap MUST include scenario_type from: auth_bypass, bola, injection, boundary, \
+mass_assignment, rate_limiting, negative, positive.
+- Do NOT report gaps for scenario types already in scenario_types_covered.
+- A test with status passed/failed/error means that scenario_type WAS executed — \
+do not request duplicate tests of the same type on the same endpoint.
+- A FAILED security test (e.g. bola expected 403, got 200) means coverage EXISTS; \
+the failure may indicate a vulnerability, not a missing test.
+- Tests with result_source prior_run are covered — never gap solely because they \
+were not in the current run batch.
+
+Severity guide:
+- HIGH: secured endpoint with path params has no bola/auth_bypass; login POST has \
+no rate_limiting; endpoint has zero tests.
+- MEDIUM: string path params lack injection; POST body endpoints lack mass_assignment.
+- LOW: skip — return only HIGH and MEDIUM."""
 
 
 async def _load_latest_results_by_test_id(
@@ -135,14 +151,18 @@ async def analyze_coverage_gaps(
                 tr = None
                 result_source = "never_run"
 
-            test_details.append({
+            detail: dict[str, Any] = {
                 "name": t.name,
-                "description": t.description,
                 "scenario_type": t.scenario_type,
                 "status": tr.status if tr else "never_run",
                 "result_source": result_source,
-                "assertion_results": tr.assertion_results if tr else None,
-            })
+            }
+            if tr and tr.status == "failed" and t.scenario_type in (
+                "bola", "auth_bypass", "injection", "mass_assignment"
+            ):
+                detail["failed_security_test"] = True
+                detail["response_status"] = tr.response_status
+            test_details.append(detail)
         endpoint_summaries.append({
             "method": ep.method,
             "path": ep.path,
@@ -152,20 +172,22 @@ async def analyze_coverage_gaps(
             "tests": test_details,
         })
 
-    prompt = f"""Analyze the test coverage for this API suite based on ACTUAL test results.
+    prompt = f"""Analyze test coverage for this API suite based on ACTUAL test results.
 
 Endpoints and their test outcomes:
 {json.dumps(endpoint_summaries, indent=2, default=str)}
 
-For each endpoint, consider:
-1. Are there endpoints with ZERO tests? (high severity)
-2. Which scenario types in auth_bypass, bola, injection, boundary are NOT in scenario_types_covered?
-3. Do NOT re-report scenarios that already have tests (even if those tests failed).
+For each endpoint, check missing scenario types among:
+auth_bypass, bola, injection, boundary, mass_assignment, rate_limiting.
 
-IMPORTANT: endpoint_path values in your response MUST be chosen EXACTLY from this list:
+Example: endpoint has bola test with status=failed and response_status=200 → BOLA is \
+COVERED (do not report a BOLA gap).
+
+IMPORTANT: endpoint_path values MUST be chosen EXACTLY from:
 {json.dumps(valid_paths)}
 
-Return only HIGH and MEDIUM severity gaps. Prioritize BOLA/IDOR and auth_bypass."""
+Return only HIGH and MEDIUM severity gaps. Each gap needs scenario_type and \
+scenario_description."""
 
     try:
         result, tokens_used = await generate_structured_with_usage(
@@ -186,11 +208,13 @@ Return only HIGH and MEDIUM severity gaps. Prioritize BOLA/IDOR and auth_bypass.
                 )
                 continue
 
-            if should_skip_new_gap(tests, existing_gaps, matched_ep.id, g.scenario_description):
+            tagged_description = f"[{g.scenario_type}] {g.scenario_description}"
+
+            if should_skip_new_gap(tests, existing_gaps, matched_ep.id, tagged_description):
                 skipped += 1
                 logger.info(
                     "Skipping duplicate gap [%s] %s on %s",
-                    infer_scenario_type(g.scenario_description),
+                    g.scenario_type,
                     g.scenario_description[:60],
                     g.endpoint_path,
                 )
@@ -200,7 +224,7 @@ Return only HIGH and MEDIUM severity gaps. Prioritize BOLA/IDOR and auth_bypass.
                 test_suite_id=suite_id,
                 endpoint_id=matched_ep.id,
                 run_id=run_id,
-                scenario_description=g.scenario_description,
+                scenario_description=tagged_description,
                 severity=g.severity.lower(),
             )
             db.add(gap)

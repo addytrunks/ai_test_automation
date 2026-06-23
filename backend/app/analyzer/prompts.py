@@ -14,25 +14,33 @@ MAX_BODY_CHARS = 4000
 
 FAILURE_ANALYSIS_SYSTEM_PROMPT = (
     "You are an expert API security engineer analyzing automated test failures. "
-    "You understand common API vulnerabilities including BOLA, broken authentication, "
-    "mass assignment, injection, and improper input validation. "
-    "Analyze the test failure and provide a clear explanation, root cause, and fix. "
-    "Be specific — reference actual values from the response when relevant."
+    "You understand BOLA/IDOR, broken authentication, mass assignment, injection, "
+    "and input validation issues.\n\n"
+    "For security scenario types (bola, auth_bypass, injection, mass_assignment): "
+    "if the API returned a MORE permissive response than expected (e.g. expected 403 "
+    "but got 200), classify likely_cause as a potential security vulnerability, "
+    "not a broken test.\n\n"
+    "likely_cause should use one of: validation_error, auth_misconfiguration, "
+    "test_assertion_too_strict, bola_vulnerability, auth_bypass_vulnerability, "
+    "injection_vulnerability, mass_assignment_vulnerability, server_error, unknown.\n\n"
+    "Be specific — reference actual values from the request and response."
 )
 
 
 def _truncate_body(body: dict[str, Any] | str | None) -> str:
-    """Compact and truncate response body for LLM prompt inclusion.
-
-    Compacts JSON dicts (strips whitespace), then caps at MAX_BODY_CHARS.
-    Appends [TRUNCATED] marker so the LLM knows context is missing.
-    """
+    """Compact and truncate response body for LLM prompt inclusion."""
     if body is None:
         return "<empty>"
     s = json.dumps(body, separators=(",", ":")) if isinstance(body, dict) else str(body)
     if len(s) > MAX_BODY_CHARS:
         return s[:MAX_BODY_CHARS] + "\n[TRUNCATED]"
     return s
+
+
+def _format_optional_json(label: str, value: Any) -> str:
+    if value is None:
+        return f"{label}: <none>"
+    return f"{label}:\n{json.dumps(value, indent=2, default=str)}"
 
 
 def build_failure_prompt(
@@ -44,16 +52,15 @@ def build_failure_prompt(
     path: str,
     expected_status: int,
     assertions: list[dict[str, Any]] | None,
+    headers: dict[str, Any] | None = None,
+    body: dict[str, Any] | None = None,
+    path_params: dict[str, Any] | None = None,
+    query_params: dict[str, Any] | None = None,
     response_status: int | None,
     response_body: dict[str, Any] | str | None,
     assertion_results: list[dict[str, Any]] | None,
 ) -> str:
-    """Build a 3-layer failure analysis prompt.
-
-    Layer 1 — Intent: what the test was trying to verify.
-    Layer 2 — Expected: what the test expected to happen.
-    Layer 3 — Actual: what actually happened (status, body).
-    """
+    """Build a 3-layer failure analysis prompt."""
     failed_assertions = [a for a in (assertion_results or []) if not a.get("passed")]
     all_assertions_str = json.dumps(assertions or [], indent=2)
     failed_str = json.dumps(failed_assertions, indent=2)
@@ -66,6 +73,12 @@ Name: {test_name}
 Description: {test_description or 'N/A'}
 Scenario Type: {scenario_type}
 Request: {method} {path}
+
+== REQUEST SENT ==
+{_format_optional_json("Headers", headers)}
+{_format_optional_json("Path Params", path_params)}
+{_format_optional_json("Query Params", query_params)}
+{_format_optional_json("Body", body)}
 
 == EXPECTED BEHAVIOR ==
 Expected Status: {expected_status}

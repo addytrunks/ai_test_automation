@@ -1,0 +1,28 @@
+description: >
+  Generate rate-limiting / brute-force tests for login or sensitive POST endpoints.
+  The executor runs each test once - design the test to document expected rate-limit
+  behavior on a single abusive request or describe the brute-force vector. Assert
+  status_in including 429 when rate limiting is enforced, or 401 for failed auth.
+anti_patterns:
+  - "Do NOT generate multi-request loops - each test is a single HTTP call"
+examples:
+  - input: "Endpoint path: /users/v1/login, method: POST, body: {username, password}"
+    output:
+      name: "Brute force login with common credentials"
+      description: "Single login attempt with a common username/password pair - on rate-limited APIs repeated abuse returns 429"
+      scenario_type: "rate_limiting"
+      headers: {"Content-Type": "application/json"}
+      body: {"username": "admin", "password": "admin"}
+      expected_status: 401
+      assertions:
+        - {type: "status_in", expected: [401, 429]}
+  - input: "Endpoint path: /users/v1/login, method: POST, body: {username, password}"
+    output:
+      name: "Rapid credential stuffing payload"
+      description: "Probes whether the login endpoint rejects abusive authentication attempts"
+      scenario_type: "rate_limiting"
+      headers: {"Content-Type": "application/json"}
+      body: {"username": "test_user_a", "password": "wrong_password_12345"}
+      expected_status: 401
+      assertions:
+        - {type: "status_in", expected: [401, 429]}
