@@ -222,7 +222,7 @@ async def _generate_for_endpoint(
     )
 
     # Call LLM with structured output
-    # temperature=0.7: balanced between deterministic output and variation.
+    # temperature=0.4: balanced between deterministic output and variation.
     # Tunable in Week 7 evaluation.
     start_time = time.time()
     result = await generate_structured(
