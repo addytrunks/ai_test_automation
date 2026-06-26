@@ -28,7 +28,7 @@
 **Files:**
 - Create: `C:\AI_TEST_AUTOMATION\docs\adr\002-no-rag-few-shot-instead.md`
 
-- [ ] **Step 1: Write ADR-002**
+- [x] **Step 1: Write ADR-002**
 
 Write the ADR detailing why RAG (Vector DB) was rejected in favor of inline few-shot YAML patterns. Use the standard template:
 - **Status:** Accepted
@@ -53,10 +53,10 @@ git commit -m "docs: add ADR-002 justifying few-shot prompting over RAG"
 
 Ensure each ADR uses the standard template (Status, Date, Context, Decision, Alternatives Considered, Consequences).
 
-- [ ] **Step 1: Write ADR-003**
+- [x] **Step 1: Write ADR-003**
 Topic: Data-driven Tests (`003-data-driven-tests.md`). Justify using structured JSON for tests rather than executing generated python/pytest code (avoids arbitrary code execution risks, easier to parse and display).
 
-- [ ] **Step 2: Write ADR-004**
+- [x] **Step 2: Write ADR-004**
 Topic: LangGraph for Agentic Loop (`004-langgraph-for-agentic-loop.md`). This ADR must include an **honest tradeoffs section** — shallow "pros only" ADRs fail mentor review. Specifically:
 
   **(a) Alternative: Custom while-loop implementation.** Describe what this would look like concretely: a `while depth < max_depth` loop calling `execute()`, `analyze()`, `generate()` in sequence. Enumerate what you'd have to build yourself: state serialization to DB for resume-on-crash, manual depth tracking, explicit error-boundary handling, and no built-in graph visualization. Estimate the additional code cost (rough LOC or days).
@@ -65,10 +65,10 @@ Topic: LangGraph for Agentic Loop (`004-langgraph-for-agentic-loop.md`). This AD
 
   **(c) Why costs are acceptable.** Frame this specifically as a POC decision: the project's goal is to *demonstrate agentic patterns* for a mentor review and demo, not to minimize runtime dependencies. LangGraph provides checkpointing, visualization, and a standard vocabulary for describing agent architectures — all of which directly serve the demo narrative. For a production system at scale, the custom while-loop might be preferable; for this POC, the tradeoff favors LangGraph.
 
-- [ ] **Step 3: Write ADR-005**
+- [x] **Step 3: Write ADR-005**
 Topic: LiteLLM for portability (`005-litellm-for-provider-portability.md`). Justify avoiding hardcoding OpenAI SDK to allow switching to Anthropic or local models without code changes.
 
-- [ ] **Step 4: Write ADR-006**
+- [x] **Step 4: Write ADR-006**
 Topic: JWT Auth for POC (`006-jwt-auth-poc-scope.md`). Justify omitting OAuth/MFA for a pure POC context to save time.
 
 - [ ] **Step 5: Commit**
@@ -84,7 +84,7 @@ git commit -m "docs: add remaining ADRs 003 through 006"
 **Files:**
 - Create: `C:\AI_TEST_AUTOMATION\docs\architecture.md`
 
-- [ ] **Step 1: Write Document**
+- [x] **Step 1: Write Document**
 Create a comprehensive markdown file explaining the overall system. 
 Include:
 - The monolith modular breakdown.
@@ -92,7 +92,7 @@ Include:
 - A Mermaid diagram showing the LangGraph state machine (execute -> analyze -> generate loop).
 - A Mermaid diagram showing the Frontend -> Backend -> Target API communication.
 
-- [ ] **Step 2: Write API Document**
+- [x] **Step 2: Write API Document**
 Create `docs/api.md` as a high-level overview of the backend REST API, documenting the core domain boundaries (`/projects`, `/specs`, `/test-suites`, `/runs`).
 
 - [ ] **Step 3: Commit**
@@ -115,17 +115,17 @@ Draft a 5-10 slide deck outline covering the problem, the agentic loop solution,
 
 ## Verification Checklist (end of Week 7)
 
-- [ ] `docs/adr/001-modular-monolith.md` exists (from W1).
-- [ ] `docs/adr/002-no-rag-few-shot-instead.md` exists.
-- [ ] `docs/adr/003-data-driven-tests.md` exists.
-- [ ] `docs/adr/004-langgraph-for-agentic-loop.md` exists.
-- [ ] `docs/adr/005-litellm-for-provider-portability.md` exists.
-- [ ] `docs/adr/006-jwt-auth-poc-scope.md` exists.
-- [ ] `docs/architecture.md` is complete and includes mermaid diagrams.
-- [ ] `docs/api.md` exists.
+- [x] `docs/adr/001-modular-monolith.md` exists (from W1).
+- [x] `docs/adr/002-no-rag-few-shot-instead.md` exists.
+- [x] `docs/adr/003-data-driven-tests.md` exists.
+- [x] `docs/adr/004-langgraph-for-agentic-loop.md` exists.
+- [x] `docs/adr/005-litellm-for-provider-portability.md` exists.
+- [x] `docs/adr/006-jwt-auth-poc-scope.md` exists.
+- [x] `docs/architecture.md` is complete and includes mermaid diagrams.
+- [x] `docs/api.md` exists.
 - [ ] Rough demo video recorded.
 - [ ] Slide deck outline created.
-- [ ] **Zero code files (.py, .ts, .tsx) were modified.**
+- [x] **Zero code files (.py, .ts, .tsx) were modified.**
 
 When all 11 boxes are ticked, you are done with Weeks 6 & 7.
 
