@@ -1,5 +1,6 @@
 import { apiClient } from "./client"
 import type {
+  AuthEndpointHint,
   Endpoint,
   Project,
   ProjectCreatePayload,
@@ -50,5 +51,12 @@ export async function getSpecs(projectId: string): Promise<Spec[]> {
 
 export async function getEndpoints(specId: string): Promise<Endpoint[]> {
   const { data } = await apiClient.get<Endpoint[]>(`/specs/${specId}/endpoints`)
+  return data
+}
+
+export async function getAuthEndpointHint(specId: string): Promise<AuthEndpointHint> {
+  const { data } = await apiClient.get<AuthEndpointHint>(
+    `/specs/${specId}/auth-endpoint-hint`,
+  )
   return data
 }

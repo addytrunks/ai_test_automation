@@ -89,6 +89,8 @@ class TestSuiteCreate(BaseModel):
     spec_id: uuid.UUID
     endpoint_ids: list[uuid.UUID]
     scenarios: list[str] = ["positive", "negative"]
+    auth_endpoint_id: uuid.UUID | None = None
+    register_endpoint_id: uuid.UUID | None = None
 
 
 class TestSuiteRead(BaseModel):

@@ -29,6 +29,59 @@ from app.runner.assertions import evaluate_assertions
 logger = logging.getLogger(__name__)
 
 
+# ── Setup test isolation ─────────────────────────────────────────────────────
+
+
+_USER_ID_KEY_PATTERN = re.compile(r"^USER_[A-Z]_ID$")
+
+
+def _make_setup_unique(setup_tests: list[Test], run_suffix: str) -> None:
+    """Patch setup test bodies with a per-run suffix for state isolation.
+
+    Creates shallow copies of body/static_context to avoid SQLAlchemy
+    dirty-tracking persisting these runtime-only changes back to the DB.
+    Each run registers fresh users like ``test_user_a_a7f3c1`` instead
+    of reusing a static ``test_user_a`` whose password may have been changed
+    by a prior iteration.
+    """
+    for test in setup_tests:
+        if not test.body or not isinstance(test.body, dict):
+            continue
+
+        # Work on copies to avoid SQLAlchemy change tracking
+        body = dict(test.body)
+        static_ctx = dict(test.static_context) if test.static_context else None
+
+        # Patch username field: "test_user_a" → "test_user_a_a7f3c1"
+        if "username" in body and isinstance(body["username"], str):
+            original_username = body["username"]
+            unique_username = f"{original_username}_{run_suffix}"
+            body["username"] = unique_username
+            logger.info(
+                "Setup isolation: %s → %s", original_username, unique_username,
+            )
+
+            # Update only USER_A_ID / USER_B_ID keys in static_context.
+            # Matching on key pattern avoids false positives on unrelated
+            # fields that might coincidentally hold the same string value.
+            if static_ctx:
+                for key in list(static_ctx):
+                    if _USER_ID_KEY_PATTERN.match(key) and static_ctx[key] == original_username:
+                        static_ctx[key] = unique_username
+
+        # Patch email field to avoid duplicate-email collisions
+        if "email" in body and isinstance(body["email"], str):
+            email = body["email"]
+            if "@" in email:
+                local, domain = email.rsplit("@", 1)
+                body["email"] = f"{local}_{run_suffix}@{domain}"
+
+        # Reassign copies (SQLAlchemy sees new objects, won't flush to DB)
+        test.body = body
+        if static_ctx is not None:
+            test.static_context = static_ctx
+
+
 # ── Template variable resolution ─────────────────────────────────────────────
 
 
@@ -168,7 +221,19 @@ async def execute_run(
     setup_tests = [t for t in tests if t.scenario_type == "setup"]
     # Sort setup tests: register tests (no extract) before login tests (with extract)
     setup_tests.sort(key=lambda t: 1 if t.extract else 0)
-    
+
+    # State isolation: detach setup tests from the session before patching
+    # so unique suffixes are NOT persisted to the database.
+    # INVARIANT: db.expunge() must happen AFTER any db.get()/query that
+    # could trigger an autoflush.  The `await db.get(Run, run_id)` above
+    # is safe because it executes before this block.  If you add queries
+    # between here and _execute_single_test, ensure they don't autoflush
+    # the expunged (and now dirty) Test objects back into the session.
+    run_suffix = uuid.uuid4().hex[:6]
+    for t in setup_tests:
+        db.expunge(t)
+    _make_setup_unique(setup_tests, run_suffix)
+
     exec_tests = [t for t in tests if t.scenario_type != "setup"]
 
     try:
@@ -189,13 +254,9 @@ async def execute_run(
                         list(provided_keys),
                     )
                     summary["skipped"] += 1
-                    db.add(TestResult(
-                        run_id=run.id,
-                        test_id=test.id,
-                        status="skipped",
-                        duration_ms=0,
-                        error_message="Skipped duplicate setup test",
-                    ))
+                    # Don't persist a TestResult for skipped setup tests.
+                    # The test object is expunged, and a zero-duration
+                    # "skipped" row would confuse the failure analysis LLM.
                     continue
 
                 tr = await _execute_single_test(

@@ -1,10 +1,10 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 
 import { createTestSuite } from "@/api/generator"
 import { apiClient } from "@/api/client"
-import { getEndpoints } from "@/api/specs"
+import { getAuthEndpointHint, getEndpoints } from "@/api/specs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -149,12 +149,34 @@ export default function EndpointExplorer() {
   )
   const [suiteName, setSuiteName] = useState("")
   const [generateError, setGenerateError] = useState<string | null>(null)
+  const [selectedAuthId, setSelectedAuthId] = useState<string | null>(null)
+  const [selectedRegisterId, setSelectedRegisterId] = useState<string | null>(null)
 
   const { data: endpoints, isLoading } = useQuery({
     queryKey: ["endpoints", specId],
     queryFn: () => getEndpoints(specId!),
     enabled: !!specId,
   })
+
+  // Fetch auth endpoint hint at spec load time
+  const { data: authHint } = useQuery({
+    queryKey: ["auth-hint", specId],
+    queryFn: () => getAuthEndpointHint(specId!),
+    enabled: !!specId,
+    staleTime: Infinity,
+  })
+
+  // Pre-populate auth selectors when hint loads
+  useEffect(() => {
+    if (authHint) {
+      if (authHint.login_endpoint_id) {
+        setSelectedAuthId(authHint.login_endpoint_id)
+      }
+      if (authHint.register_endpoint_id) {
+        setSelectedRegisterId(authHint.register_endpoint_id)
+      }
+    }
+  }, [authHint])
 
   // Look up project_id by finding which project owns this spec
   const { data: projectIdFromSpec } = useQuery({
@@ -232,6 +254,12 @@ export default function EndpointExplorer() {
     }
   }, [scenarioStates])
 
+  // Check if any selected scenario requires auth
+  const needsAuth = useMemo(() => {
+    return selectedScenarios.has("auth_bypass") || selectedScenarios.has("bola") ||
+      selectedEndpoints.some(hasAuth)
+  }, [selectedScenarios, selectedEndpoints])
+
   const generateMutation = useMutation({
     mutationFn: () => {
       if (!projectIdFromSpec || !specId) {
@@ -242,6 +270,8 @@ export default function EndpointExplorer() {
         spec_id: specId,
         endpoint_ids: Array.from(selectedIds),
         scenarios: Array.from(selectedScenarios),
+        auth_endpoint_id: selectedAuthId,
+        register_endpoint_id: selectedRegisterId,
       })
     },
     onSuccess: (suite) => {
@@ -259,7 +289,9 @@ export default function EndpointExplorer() {
     selectedIds.size > 0 &&
     selectedScenarios.size > 0 &&
     !!projectIdFromSpec &&
-    !generateMutation.isPending
+    !generateMutation.isPending &&
+    // If auth is needed, require a login endpoint selection
+    (!needsAuth || !!selectedAuthId)
 
   return (
     <div className="min-h-screen bg-slate-50 p-8">
@@ -409,6 +441,70 @@ export default function EndpointExplorer() {
                     })}
                   </div>
                 </div>
+
+                {/* Auth endpoint selector — always visible */}
+                {authHint && (authHint.login_candidates.length > 0 || authHint.register_candidates.length > 0) && (
+                  <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">🔑 Auth Configuration</span>
+                      {needsAuth && !selectedAuthId && (
+                        <span className="text-xs text-amber-600 font-medium">
+                          ⚠ Login endpoint required
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Login endpoint */}
+                    <div className="space-y-1">
+                      <Label htmlFor="auth-endpoint-select" className="text-xs">
+                        Login Endpoint
+                        {authHint.login_endpoint_id && (
+                          <span className="ml-1 text-emerald-600 font-normal">(auto-detected)</span>
+                        )}
+                      </Label>
+                      <select
+                        id="auth-endpoint-select"
+                        value={selectedAuthId ?? ""}
+                        onChange={(e) => setSelectedAuthId(e.target.value || null)}
+                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="">None (no auth setup)</option>
+                        {authHint.login_candidates.map((ep) => (
+                          <option key={ep.id} value={ep.id}>
+                            {ep.method.toUpperCase()} {ep.path}
+                            {ep.summary ? ` — ${ep.summary}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Register endpoint */}
+                    {authHint.register_candidates.length > 0 && (
+                      <div className="space-y-1">
+                        <Label htmlFor="register-endpoint-select" className="text-xs">
+                          Register Endpoint
+                          {authHint.register_endpoint_id && (
+                            <span className="ml-1 text-emerald-600 font-normal">(auto-detected)</span>
+                          )}
+                        </Label>
+                        <select
+                          id="register-endpoint-select"
+                          value={selectedRegisterId ?? ""}
+                          onChange={(e) => setSelectedRegisterId(e.target.value || null)}
+                          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value="">None (skip registration)</option>
+                          {authHint.register_candidates.map((ep) => (
+                            <option key={ep.id} value={ep.id}>
+                              {ep.method.toUpperCase()} {ep.path}
+                              {ep.summary ? ` — ${ep.summary}` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Summary + Generate */}
                 <div className="flex items-center justify-between pt-2 border-t">

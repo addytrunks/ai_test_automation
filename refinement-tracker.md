@@ -20,15 +20,16 @@ This is a living document to track all pending refinements, prompt adjustments, 
 
 ### 2. User Interface & Configuration (Week 4 Focus)
 
-- [ ] **Manual Auth Endpoint Selector in UI**
+- [x] **Manual Auth Endpoint Selector in UI**
   * **Requirement:** If the backend detection heuristic fails (finds 0 or 2+ candidates) and throws a 400, the UI must display a dropdown allowing the user to manually select which endpoint is the authentication route.
   * **Fix:**
-    * Update the `/projects/{id}/test-suites` endpoint payload schema to accept an optional `auth_endpoint_id` directly from the frontend.
-    * Update the Endpoint Explorer UI to present an auth dropdown when a mismatch or failure occurs.
+    * Added `GET /specs/{spec_id}/auth-endpoint-hint` endpoint that runs the heuristic at spec-load time and returns candidates + auto-detected recommendation.
+    * Updated the `/projects/{id}/test-suites` endpoint payload schema to accept optional `auth_endpoint_id` and `register_endpoint_id` from the frontend.
+    * The Endpoint Explorer UI always shows an Auth Configuration panel (pre-populated by the hint) so users never encounter an error as the happy path.
 
-- [ ] **Clean Render for Missing Headers/Bodies**
+- [x] **Clean Render for Missing Headers/Bodies**
   * **Issue:** If headers or body dictionaries are missing/null, the detail cards can look empty.
-  * **Fix:** Update `TestSuiteDetail.tsx` to render a clean placeholder (e.g., "No headers required") instead of omitting the section completely when a user might expect to see an invalid header.
+  * **Fix:** Updated `TestSuiteDetail.tsx` to always show Headers, Body, Path Params, and Query Params sections with clean placeholder text (e.g., "No headers required") when null/empty.
 
 ---
 

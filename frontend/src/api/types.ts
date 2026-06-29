@@ -110,6 +110,22 @@ export interface TestSuiteCreatePayload {
   spec_id: string
   endpoint_ids: string[]
   scenarios?: string[]
+  auth_endpoint_id?: string | null
+  register_endpoint_id?: string | null
+}
+
+export interface AuthEndpointCandidate {
+  id: string
+  method: string
+  path: string
+  summary: string | null
+}
+
+export interface AuthEndpointHint {
+  login_endpoint_id: string | null
+  login_candidates: AuthEndpointCandidate[]
+  register_endpoint_id: string | null
+  register_candidates: AuthEndpointCandidate[]
 }
 
 // ---------------------------------------------------------------------------

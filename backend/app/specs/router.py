@@ -6,11 +6,66 @@ from fastapi import APIRouter, HTTPException, UploadFile, status
 from sqlalchemy import select
 
 from app.deps import CurrentUser, DbSession
-from app.models import Project, Spec
+from app.generator.service import resolve_auth_endpoints
+from app.models import Endpoint, Project, Spec
 from app.specs import service
-from app.specs.schemas import EndpointRead, ProjectCreate, ProjectRead, ProjectUpdate, SpecRead
+from app.specs.schemas import (
+    AuthEndpointHint,
+    EndpointRead,
+    ProjectCreate,
+    ProjectRead,
+    ProjectUpdate,
+    SpecRead,
+)
 
 router = APIRouter()
+
+# Auth keyword lists — kept in sync with generator.service.resolve_auth_endpoints
+_LOGIN_KEYWORDS = ["login", "auth", "token", "signin", "sessions"]
+_REGISTER_KEYWORDS = ["register", "signup", "sign-up", "create-user"]
+
+
+@router.get("/specs/{spec_id}/auth-endpoint-hint", response_model=AuthEndpointHint)
+async def get_auth_endpoint_hint(
+    spec_id: uuid.UUID, user: CurrentUser, db: DbSession
+) -> AuthEndpointHint:
+    """Run the auth-detection heuristic and return candidates + recommendation.
+
+    This is called at spec-load time so the UI can pre-populate the auth
+    endpoint selector rather than failing at generation time.
+    """
+    # Verify ownership
+    stmt = select(Spec).join(Project).where(Spec.id == spec_id, Project.user_id == user.id)
+    result = await db.execute(stmt)
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Spec not found")
+
+    all_endpoints = list(
+        (await db.execute(select(Endpoint).where(Endpoint.spec_id == spec_id))).scalars().all()
+    )
+
+    # Collect candidates
+    login_candidates = [
+        ep for ep in all_endpoints
+        if ep.method.lower() == "post"
+        and any(k in ep.path.lower() for k in _LOGIN_KEYWORDS)
+    ]
+    register_candidates = [
+        ep for ep in all_endpoints
+        if ep.method.lower() == "post"
+        and any(k in ep.path.lower() for k in _REGISTER_KEYWORDS)
+    ]
+
+    # Auto-select if exactly one match
+    login_id = login_candidates[0].id if len(login_candidates) == 1 else None
+    register_id = register_candidates[0].id if len(register_candidates) == 1 else None
+
+    return AuthEndpointHint(
+        login_endpoint_id=login_id,
+        login_candidates=login_candidates,  # type: ignore[arg-type]
+        register_endpoint_id=register_id,
+        register_candidates=register_candidates,  # type: ignore[arg-type]
+    )
 
 
 @router.post("/projects", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)

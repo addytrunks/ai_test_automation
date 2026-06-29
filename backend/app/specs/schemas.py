@@ -53,3 +53,28 @@ class EndpointRead(BaseModel):
     request_body: dict[str, Any] | None
     responses: dict[str, Any] | None
     security: list[dict[str, Any]] | None = None
+
+
+class AuthEndpointCandidate(BaseModel):
+    """A candidate endpoint that might serve as login or register."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    method: str
+    path: str
+    summary: str | None
+
+
+class AuthEndpointHint(BaseModel):
+    """Response from the auth-endpoint-hint endpoint.
+
+    If exactly one login candidate is found, ``login_endpoint_id`` is
+    pre-filled as the recommended selection.  Otherwise it is ``None``
+    and the UI should ask the user to pick.
+    """
+
+    login_endpoint_id: uuid.UUID | None = None
+    login_candidates: list[AuthEndpointCandidate]
+    register_endpoint_id: uuid.UUID | None = None
+    register_candidates: list[AuthEndpointCandidate]

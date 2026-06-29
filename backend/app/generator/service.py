@@ -465,25 +465,27 @@ async def create_test_suite(
     auth_endpoint_id = None
     register_endpoint_id = None
     if requires_auth:
-        auth_ep, reg_ep = resolve_auth_endpoints(all_endpoints)
-        login_candidates = [
-            ep for ep in all_endpoints
-            if ep.method.lower() == "post"
-            and any(k in ep.path.lower() for k in ["login", "auth", "token", "signin", "sessions"])
-        ]
-
-        if auth_ep:
-            auth_endpoint_id = auth_ep.id
+        # Prefer explicit IDs from the UI (always-visible selector)
+        if payload.auth_endpoint_id:
+            auth_endpoint_id = payload.auth_endpoint_id
         else:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Could not auto-detect a unique authentication endpoint (found {len(login_candidates)} candidates). "
-                "Generation of authenticated test suites requires an auth endpoint config. "
-                "(Manual UI configuration pending in Week 4)."
-            )
+            # Fallback to heuristic (e.g. API-only callers)
+            auth_ep, _ = resolve_auth_endpoints(all_endpoints)
+            if auth_ep:
+                auth_endpoint_id = auth_ep.id
+            else:
+                logger.warning(
+                    "No auth endpoint provided or auto-detected — "
+                    "setup tests will be skipped for suite in project %s",
+                    project_id,
+                )
 
-        if reg_ep:
-            register_endpoint_id = reg_ep.id
+        if payload.register_endpoint_id:
+            register_endpoint_id = payload.register_endpoint_id
+        else:
+            _, reg_ep = resolve_auth_endpoints(all_endpoints)
+            if reg_ep:
+                register_endpoint_id = reg_ep.id
 
     suite = TestSuite(
         project_id=project_id,

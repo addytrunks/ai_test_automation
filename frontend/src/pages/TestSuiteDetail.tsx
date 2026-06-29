@@ -65,23 +65,31 @@ function TestCard({ test }: { test: Test }) {
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
         {/* Path params */}
-        {test.path_params && Object.keys(test.path_params).length > 0 && (
+        {test.path_params && Object.keys(test.path_params).length > 0 ? (
           <CollapsibleJson label="Path Params" data={test.path_params} />
+        ) : (
+          <EmptySection label="Path Params" message="No path parameters" />
         )}
 
         {/* Query params */}
-        {test.query_params && Object.keys(test.query_params).length > 0 && (
+        {test.query_params && Object.keys(test.query_params).length > 0 ? (
           <CollapsibleJson label="Query Params" data={test.query_params} />
+        ) : (
+          <EmptySection label="Query Params" message="No query parameters" />
         )}
 
         {/* Headers */}
-        {test.headers && Object.keys(test.headers).length > 0 && (
+        {test.headers && Object.keys(test.headers).length > 0 ? (
           <CollapsibleJson label="Headers" data={test.headers} />
+        ) : (
+          <EmptySection label="Headers" message="No headers required" />
         )}
 
         {/* Body */}
-        {test.body && Object.keys(test.body).length > 0 && (
+        {test.body && Object.keys(test.body).length > 0 ? (
           <CollapsibleJson label="Request Body" data={test.body} />
+        ) : (
+          <EmptySection label="Request Body" message="No request body" />
         )}
 
         {/* Assertions */}
@@ -114,6 +122,15 @@ function CollapsibleJson({
       <div className="rounded-lg bg-slate-900 p-3 overflow-x-auto text-xs">
         <JsonView data={data as object} style={darkStyles} />
       </div>
+    </div>
+  )
+}
+
+function EmptySection({ label, message }: { label: string; message: string }) {
+  return (
+    <div>
+      <p className="text-xs font-medium text-slate-500 mb-1">{label}</p>
+      <p className="text-xs text-slate-400 italic pl-1">{message}</p>
     </div>
   )
 }
