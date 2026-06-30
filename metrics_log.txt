@@ -100,3 +100,30 @@ Generation Time (Endpoint post /users/v1/login, depth 2): 25.64 seconds
 Generation Time (Endpoint get /users/v1/{username}, depth 2): 18.15 seconds
 Generation Time (Endpoint get /users/v1/{username}, depth 2): 20.05 seconds
 Generation Time (Endpoint get /users/v1/{username}, depth 2): 29.59 seconds
+Generation Time (Endpoint post /users/v1/login, baseline): 66.82 seconds
+Generation Time (Endpoint post /users/v1/register, baseline): 24.75 seconds
+Generation Time (Endpoint put /users/v1/{username}/email, baseline): 18.18 seconds
+Generation Time (Endpoint put /users/v1/{username}/password, baseline): 40.05 seconds
+Generation Time (Endpoint get /users/v1/{username}, baseline): 29.61 seconds
+Generation Time (Endpoint put /users/v1/{username}/password, baseline): 13.48 seconds
+Generation Time (Endpoint put /users/v1/{username}/email, baseline): 5.47 seconds
+Generation Time (Endpoint get /users/v1/{username}, baseline): 8.68 seconds
+Generation Time (Endpoint post /users/v1/register, baseline): 14.24 seconds
+Generation Time (Endpoint post /users/v1/login, baseline): 16.19 seconds
+Generation Time (Endpoint put /users/v1/{username}/password, baseline): 71.80 seconds
+Generation Time (Endpoint put /users/v1/{username}/email, baseline): 13.03 seconds
+Generation Time (Endpoint get /users/v1/{username}, baseline): 66.54 seconds
+Generation Time (Endpoint post /users/v1/login, baseline): 45.29 seconds
+Generation Time (Endpoint post /users/v1/register, baseline): 48.02 seconds
+Generation Time (Endpoint get /accounts/{account_id}, baseline): 26.64 seconds
+Generation Time (Endpoint get /accounts/{account_id}/balance, baseline): 34.04 seconds
+Generation Time (Endpoint get /accounts/{account_id}, baseline): 29.19 seconds
+Generation Time (Endpoint get /accounts/{account_id}, baseline): 36.57 seconds
+Generation Time (Endpoint get /accounts/{account_id}, baseline): 41.65 seconds
+Generation Time (Endpoint get /accounts/{account_id}/balance, baseline): 15.13 seconds
+Generation Time (Endpoint get /accounts/{account_id}, baseline): 26.42 seconds
+Generation Time (Endpoint get /accounts/{account_id}/balance, baseline): 5.38 seconds
+Generation Time (Endpoint get /accounts/{account_id}, baseline): 42.84 seconds
+Generation Time (Endpoint get /accounts/{account_id}/balance, baseline): 6.77 seconds
+Generation Time (Endpoint get /accounts/{account_id}, baseline): 70.29 seconds
+Generation Time (Endpoint get /accounts/{account_id}/balance, baseline): 20.43 seconds

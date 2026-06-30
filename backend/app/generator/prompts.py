@@ -129,8 +129,20 @@ def build_generation_prompt(
     if include_setup:
         prompt += (
             "- Emit setup tests first. Setup tests use the auth/register endpoints' method and path, "
-            "not the target endpoint. Login setup must include extract for tokens.\n"
+            "not the target endpoint.\n"
+            "- Setup tests MUST include a JSON request body ('body') that fully complies with the required "
+            "requestBody properties of the registration and login endpoints (e.g., matching required fields like 'email', 'password', 'full_name'). "
+            "Do NOT use template variables inside setup request bodies; use realistic dummy data.\n"
+            "- Login setup tests MUST include the 'extract' mapping to extract credentials from the response. "
+            "Read the token field name from the login endpoint's response schema (e.g., extracting 'access_token' via '$.access_token' into 'USER_A_TOKEN' / 'USER_B_TOKEN').\n"
+            "- Registration setup tests MUST include the 'static_context' mapping for user identifiers (e.g., {'USER_A_ID': 'user_a_email'} / {'USER_B_ID': 'user_b_email'}).\n"
         )
+        if register_endpoint_dict:
+            prompt += (
+                "- CRITICAL: A registration endpoint is provided above. You MUST generate register "
+                "setup tests for each user (User A, User B) BEFORE their login setup tests. "
+                "Without registration, login will fail because the users do not exist yet.\n"
+            )
     elif include_auth_context:
         prompt += (
             "- Setup tests already exist in this suite. Use {{USER_A_TOKEN}} / {{USER_B_TOKEN}} "

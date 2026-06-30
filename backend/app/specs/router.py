@@ -21,7 +21,8 @@ from app.specs.schemas import (
 router = APIRouter()
 
 # Auth keyword lists — kept in sync with generator.service.resolve_auth_endpoints
-_LOGIN_KEYWORDS = ["login", "auth", "token", "signin", "sessions"]
+# NOTE: bare 'auth' intentionally excluded from login — it matches all /auth/* paths
+_LOGIN_KEYWORDS = ["login", "authenticate", "token", "signin", "sessions"]
 _REGISTER_KEYWORDS = ["register", "signup", "sign-up", "create-user"]
 
 
@@ -44,16 +45,18 @@ async def get_auth_endpoint_hint(
         (await db.execute(select(Endpoint).where(Endpoint.spec_id == spec_id))).scalars().all()
     )
 
-    # Collect candidates
-    login_candidates = [
-        ep for ep in all_endpoints
-        if ep.method.lower() == "post"
-        and any(k in ep.path.lower() for k in _LOGIN_KEYWORDS)
-    ]
+    # Collect candidates — register-first to exclude from login matches
     register_candidates = [
         ep for ep in all_endpoints
         if ep.method.lower() == "post"
         and any(k in ep.path.lower() for k in _REGISTER_KEYWORDS)
+    ]
+    register_ids = {ep.id for ep in register_candidates}
+    login_candidates = [
+        ep for ep in all_endpoints
+        if ep.method.lower() == "post"
+        and ep.id not in register_ids
+        and any(k in ep.path.lower() for k in _LOGIN_KEYWORDS)
     ]
 
     # Auto-select if exactly one match

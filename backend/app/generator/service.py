@@ -60,17 +60,27 @@ def _ep_has_auth(ep: Endpoint) -> bool:
 def resolve_auth_endpoints(
     all_endpoints: list[Endpoint],
 ) -> tuple[Endpoint | None, Endpoint | None]:
-    """Heuristic: find unique login and optional register endpoints in a spec."""
+    """Heuristic: find unique login and optional register endpoints in a spec.
+
+    Note: bare ``auth`` was removed from login keywords because it matches
+    every ``/auth/*`` path (register, OTP, etc.) causing false positives.
+    Use specific keywords like ``login``, ``signin``, ``authenticate`` instead.
+    """
+    _login_kw = ["login", "authenticate", "token", "signin", "sessions"]
+    _register_kw = ["register", "signup", "sign-up", "create-user"]
+
     login_candidates: list[Endpoint] = []
     register_candidates: list[Endpoint] = []
     for ep in all_endpoints:
         if ep.method.lower() != "post":
             continue
         path_lower = ep.path.lower()
-        if any(k in path_lower for k in ["login", "auth", "token", "signin", "sessions"]):
-            login_candidates.append(ep)
-        if any(k in path_lower for k in ["register", "signup", "sign-up", "create-user"]):
+        is_register = any(k in path_lower for k in _register_kw)
+        if is_register:
             register_candidates.append(ep)
+        elif any(k in path_lower for k in _login_kw):
+            # Only count as login if it's NOT already matched as register
+            login_candidates.append(ep)
     auth_endpoint = login_candidates[0] if len(login_candidates) == 1 else None
     register_endpoint = register_candidates[0] if len(register_candidates) == 1 else None
     return auth_endpoint, register_endpoint
