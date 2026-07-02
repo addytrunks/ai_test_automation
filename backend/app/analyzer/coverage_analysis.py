@@ -129,7 +129,10 @@ async def analyze_coverage_gaps(
     latest_results_by_test_id = await _load_latest_results_by_test_id(db, suite_id)
 
     existing_gaps_result = await db.execute(
-        select(CoverageGap).where(CoverageGap.test_suite_id == suite_id)
+        select(CoverageGap).where(
+            CoverageGap.test_suite_id == suite_id,
+            CoverageGap.endpoint_id.in_(in_scope_endpoint_ids),
+        )
     )
     existing_gaps = list(existing_gaps_result.scalars().all())
 
@@ -231,9 +234,44 @@ scenario_description."""
             existing_gaps.append(gap)
 
         await db.commit()
+
+        # ── Re-surface unresolved gaps from prior runs ──────────────
+        # An existing gap is "unresolved" if:
+        #   (a) no test was ever spawned for it (spawned_test_id is NULL), OR
+        #   (b) the spawned test's latest result is not "passed"
+        # Including them in the return value lets the agentic loop
+        # re-attempt generation on a subsequent "Run Tests" click.
+        resurfaced = 0
+        new_gap_ids = {g.id for g in gaps}
+        for existing in existing_gaps:
+            # Skip gaps we just created in this call
+            if existing.id in new_gap_ids:
+                continue
+
+            # Only re-surface high-severity gaps (the loop ignores medium anyway)
+            if existing.severity != "high":
+                continue
+
+            if existing.spawned_test_id is None:
+                # Never had a test generated — re-surface
+                gaps.append(existing)
+                resurfaced += 1
+            else:
+                # Check if the spawned test passed — prefer current run
+                # results over the pre-commit snapshot which may be stale.
+                latest_tr = (
+                    results_by_test_id_current.get(existing.spawned_test_id)
+                    or latest_results_by_test_id.get(existing.spawned_test_id)
+                )
+                if latest_tr is None or latest_tr.status != "passed":
+                    gaps.append(existing)
+                    resurfaced += 1
+
         logger.info(
-            "Found %d coverage gaps for suite %s (%d skipped as already covered, tokens: %d)",
-            len(gaps),
+            "Found %d new + %d resurfaced coverage gaps for suite %s "
+            "(%d skipped as already covered, tokens: %d)",
+            len(gaps) - resurfaced,
+            resurfaced,
             suite_id,
             skipped,
             tokens_used,
